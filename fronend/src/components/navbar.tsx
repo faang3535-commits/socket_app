@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: '/', label: 'Home' },
   { href: '/login', label: 'Login' },
   { href: '/register', label: 'Register' },
+  { href: '/chat', label: 'Chat' },
 ];
 
 const HERO_ITEMS = [
