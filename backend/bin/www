@@ -6,25 +6,48 @@ var http = require('http');
 var { Server } = require("socket.io");
 
 var server = http.createServer(app);
-var io = new Server(server, {
+
+// --- Socket.io on Port 3001 ---
+var io = new Server(3001, {
   cors: {
-    origin: "*",
-    // methods: ["GET", "POST"],
+    origin: "*", // allow all origins
   },
 });
+console.log("Socket.io running on port 3001");
+// ------------------------------
 
 io.on("connection", (socket) => {
-  console.log("a user connected");
+  console.log("a user connected", socket.id);
 
-  socket.on("chat message", (msg) => {
-    io.emit("chat message", msg);
+  // socket.on("chat message", (msg) => {
+  //   io.emit("chat message", msg);
+  // });
+
+  socket.on("join_room", (roomId) => {
+    socket.join(roomId);
+    console.log("user joined room", roomId);
+  });
+
+  socket.on("send_message", async (data) => {
+    const { roomId, message, senderId, receiverId } = data;
+    /*
+  await prisma.message.create({
+    data: {
+      text: message,
+      senderId: senderId,
+      receiverId: receiverId
+    }
+  });
+  */
+    io.to(roomId).emit("receive_message", data);
   });
 
   socket.on("disconnect", () => {
-    console.log("user disconnected");
+    console.log("user disconnected", socket.id);
   });
 });
 
+//server on port 3000
 var port = normalizePort(process.env.PORT || '3000');
 app.set('port', port);
 

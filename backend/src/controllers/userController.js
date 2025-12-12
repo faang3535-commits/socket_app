@@ -106,7 +106,21 @@ const userController = {
     } catch (error) {
       res.status(500).json({ message: 'Server Error' });
     }
-  }
+  },  
+             
+  getalluser : async(req,res)=>{ 
+    try {
+      const user = await prisma.user.findMany({
+        where:{
+          id:{not:req.user.id}
+        },
+        select: { id: true, username: true }
+      });  
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ message: 'Server Error' });
+    }
+  },  
 };
 
 module.exports = userController;

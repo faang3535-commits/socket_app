@@ -51,10 +51,10 @@ export default function Navbar() {
           <span className="text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
             <span className="text-blue-600">Chat</span>
           </span>
-        </Link>
+        </Link>. 
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-8">
+        <nav className="hidden md:flex items-center gap-8">  
           <ul className="flex gap-6">
             {NAV_ITEMS.map((item) => (
               <li key={item.href}>
