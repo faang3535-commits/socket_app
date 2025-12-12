@@ -28,8 +28,8 @@ export function HeaderDrawer({
         </VaulHeader.Trigger>
       )}
       <VaulHeader.Portal>
-        <VaulHeader.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[99]" />
-        <VaulHeader.Content className="fixed top-0 left-0 right-0 z-[100] bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 shadow-xl focus:outline-none rounded-b-[2rem]">
+        <VaulHeader.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-99" />
+        <VaulHeader.Content className="fixed top-0 left-0 right-0 z-100 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 shadow-xl focus:outline-none rounded-b-[2rem]">
           <div className="w-full max-h-[85vh] overflow-y-auto">
              {children}
              {/* Handle for drag indication - optional for top drawer but good for affordance */}
