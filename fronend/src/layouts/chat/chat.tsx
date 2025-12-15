@@ -17,8 +17,8 @@ const Chat = () => {
     useEffect(() => {
         const fetchUsers = async () => {
             try {
-                const data = await apiService.get('/users/allusers'); 
-                setUsers(data); 
+                const data = await apiService.get('/users/allusers');
+                setUsers(data.filter((u: any) => u.id !== user.id)); 
             } catch (error) {
                 console.error('Error fetching users:', error);
             }
@@ -28,7 +28,7 @@ const Chat = () => {
         } else {
             navigate('/login');
         }
-    }, [navigate]);
+    }, [navigate, user.id]);
 
     useEffect(() => {
         if (!user.id) return;
@@ -39,27 +39,43 @@ const Chat = () => {
         newSocket.on('receive_message', (msg: any) => {
             setMessages((prev) => [...prev, msg]);
         });
-
+        
         return () => {
             newSocket.disconnect();
         };
-    }, []);
-
+    }, [user.id]);  
+    
     useEffect(() => {
         if (socket && selectedUser && user.id) {
             const roomId = [user.id, selectedUser.id].sort().join('_');
             
             socket.emit('join_room', roomId);
             console.log('Joined room:', roomId);
-
-            setMessages([]);
         }
     }, [socket, selectedUser, user.id]);
+
+
+    const loadChatAndJoinRoom = async (userToChatWith: any) => {
+        setSelectedUser(userToChatWith); 
+        
+        setMessages([]); 
+
+        try {
+            console.log(`Fetching history for user: ${userToChatWith.id}`);
+            const historyData = await apiService.get(`/users/messages/${userToChatWith.id}`);
+            
+            setMessages(historyData); 
+
+        } catch (error) {
+            console.error('Error fetching chat history:', error);
+            setMessages([]); 
+        }
+    };
+
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
-
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (input && socket && selectedUser) {
@@ -72,22 +88,22 @@ const Chat = () => {
                 username: user.username,
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             };
-            
-            socket.emit('send_message', messageData);
+
+            socket.emit("send_message", messageData);
             setInput('');
         }
     };
 
     return (
         <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden">
-            
+
             <aside className="w-64 bg-white dark:bg-gray-800 border-r dark:border-gray-700 flex flex-col">
                 <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
                     <span className="font-bold text-lg dark:text-white">Contacts</span>
                     <button
                         onClick={() => {
-                            localStorage.clear();    
-                            navigate('/login'); 
+                            localStorage.clear();
+                            navigate('/login');
                         }}
                         className="text-xs text-red-500 hover:text-red-700 font-medium"
                     >
@@ -98,7 +114,8 @@ const Chat = () => {
                     {users.map((u) => (
                         <div
                             key={u.id}
-                            onClick={() => setSelectedUser(u)}
+                            // 💡 Updated onClick handler
+                            onClick={() => loadChatAndJoinRoom(u)}
                             className={`p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center space-x-3 
                             ${selectedUser?.id === u.id ? 'bg-blue-50 dark:bg-gray-700 border-l-4 border-blue-500' : ''}`}
                         >
@@ -130,20 +147,19 @@ const Chat = () => {
                                 return (
                                     <div key={index} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                                         <div
-                                            className={`max-w-[70%] px-4 py-2 rounded-2xl shadow-sm relative ${
-                                                isMe
-                                                    ? 'bg-blue-600 text-white rounded-br-none'
-                                                    : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-white rounded-bl-none'
-                                            }`}
+                                            className={`max-w-[70%] px-4 py-2 rounded-2xl shadow-sm relative ${isMe
+                                                ? 'bg-blue-600 text-white rounded-br-none'
+                                                : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-white rounded-bl-none'
+                                                }`}
                                         >
                                             {!isMe && (
                                                 <div className="text-[10px] text-gray-400 mb-1 opacity-75">
-                                                    {msg.username}
+                                                    {msg.username || 'User'} 
                                                 </div>
                                             )}
-                                            <p className="text-sm">{msg.message}</p>
+                                            <p className="text-sm">{msg.message || msg.text}</p> 
                                             <span className={`text-[10px] block mt-1 text-right opacity-75 ${isMe ? 'text-blue-100' : 'text-gray-400'}`}>
-                                                {msg.time}
+                                                {msg.time || new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
                                             </span>
                                         </div>
                                     </div>

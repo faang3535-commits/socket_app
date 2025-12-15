@@ -5,4 +5,5 @@ const requestLogger = require('../middleware/requestLogger');
 
 router.get('/', requestLogger, indexController.getHomePage);
 
-module.exports = router;
+module.exports = router;  
+               

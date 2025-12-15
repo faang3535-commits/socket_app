@@ -1,7 +1,6 @@
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
-
+require('dotenv').config();
+const prisma = require('../../prisma');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -95,12 +94,11 @@ const userController = {
     }
   },
 
-  // Get current user profile (protected route example)
   getProfile: async (req, res) => {
     try {
       const user = await prisma.user.findUnique({
         where: { id: req.user.id },
-        select: { id: true, username: true } // Exclude password
+        select: { id: true, username: true }
       });
       res.json(user);
     } catch (error) {
@@ -117,6 +115,28 @@ const userController = {
         select: { id: true, username: true }
       });
       res.json(user);
+    } catch (error) {
+      res.status(500).json({ message: 'Server Error' });
+    }
+  },
+
+  getMessages: async (req, res) => {
+    console.log(req.params.id, "id")
+    try {
+      const messages = await prisma.message.findMany({
+        where: {
+          OR: [{
+            senderId: req.user.id,
+            receiverId: req.params.id,
+          }, {
+            senderId: req.params.id,
+            receiverId: req.user.id,
+          },
+          ],
+        },
+      });
+      console.log(messages, "messages")
+      res.json(messages);
     } catch (error) {
       res.status(500).json({ message: 'Server Error' });
     }

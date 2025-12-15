@@ -1,5 +1,8 @@
-#!/usr/bin/env node
-
+require('dotenv').config();
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient({
+  accelerateUrl: process.env.DATABASE_URL,
+});
 var app = require('../app');
 var debug = require('debug')('backend:server');
 var http = require('http');
@@ -10,14 +13,14 @@ var server = http.createServer(app);
 // --- Socket.io on Port 3001 ---
 var io = new Server(3001, {
   cors: {
-    origin: "*", // allow all origins
+    origin: "*",
   },
 });
 console.log("Socket.io running on port 3001");
 // ------------------------------
 
 io.on("connection", (socket) => {
-  console.log("a user connected", socket.id);
+  console.log("a user connected", socket.id)
 
   // socket.on("chat message", (msg) => {
   //   io.emit("chat message", msg);
@@ -30,15 +33,17 @@ io.on("connection", (socket) => {
 
   socket.on("send_message", async (data) => {
     const { roomId, message, senderId, receiverId } = data;
-    /*
-  await prisma.message.create({
-    data: {
-      text: message,
-      senderId: senderId,
-      receiverId: receiverId
+    try {
+      await prisma.message.create({
+        data: {
+          text: message,
+          senderId: senderId,
+          receiverId: receiverId
+        }
+      });
+    } catch (error) {
+      console.error("Failed to save message:", error);
     }
-  });
-  */
     io.to(roomId).emit("receive_message", data);
   });
 
@@ -59,12 +64,10 @@ function normalizePort(val) {
   var port = parseInt(val, 10);
 
   if (isNaN(port)) {
-    // named pipe
     return val;
   }
 
   if (port >= 0) {
-    // port number
     return port;
   }
 
@@ -80,7 +83,6 @@ function onError(error) {
     ? 'Pipe ' + port
     : 'Port ' + port;
 
-  // handle specific listen errors with friendly messages
   switch (error.code) {
     case 'EACCES':
       console.error(bind + ' requires elevated privileges');
