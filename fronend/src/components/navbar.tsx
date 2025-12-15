@@ -20,7 +20,7 @@ const HERO_ITEMS = [
 
 export default function Navbar() {
   const [headerOpen, setHeaderOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
+  const [scrolled, setScrolled] = useState(false); 
   const location = useLocation();
 
   useEffect(() => {

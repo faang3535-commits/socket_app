@@ -8,7 +8,7 @@ const jwt = require('jsonwebtoken');
 const userController = {
   registerUser: async (req, res) => {
     const { username, password } = req.body;
-
+    console.log(req.body);
     if (!username || !password) {
       return res.status(400).json({ message: 'Username and password are required' });
     }
@@ -106,21 +106,21 @@ const userController = {
     } catch (error) {
       res.status(500).json({ message: 'Server Error' });
     }
-  },  
-             
-  getalluser : async(req,res)=>{ 
+  },
+
+  getalluser: async (req, res) => {
     try {
       const user = await prisma.user.findMany({
-        where:{
-          id:{not:req.user.id}
+        where: {
+          id: { not: req.user.id }
         },
         select: { id: true, username: true }
-      });  
+      });
       res.json(user);
     } catch (error) {
       res.status(500).json({ message: 'Server Error' });
     }
-  },  
+  },
 };
 
 module.exports = userController;
