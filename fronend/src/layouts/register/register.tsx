@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { apiService } from "../../services/axios";
@@ -46,6 +46,16 @@ const Register = () => {
       );
     }
   };
+
+  useEffect(()=>{
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        navigate('/');
+      }
+    }
+    checkSession();
+  }, [navigate]);
 
   return (
     <section className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 px-4">
