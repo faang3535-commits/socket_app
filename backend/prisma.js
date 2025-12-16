@@ -1,8 +1,5 @@
-const { PrismaClient } = require("@prisma/client");
-const { withAccelerate } = require("@prisma/extension-accelerate");
+const { PrismaClient } = require('@prisma/client')
 
-const prisma = new PrismaClient({
-  accelerateUrl: process.env.DATABASE_URL,
-}).$extends(withAccelerate());
+const prisma = new PrismaClient()
 
-module.exports = prisma;
+module.exports = prisma

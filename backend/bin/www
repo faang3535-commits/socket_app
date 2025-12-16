@@ -1,59 +1,88 @@
 require('dotenv').config();
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient({
-  accelerateUrl: process.env.DATABASE_URL,
-});
-var app = require('../app');
-var debug = require('debug')('backend:server');
-var http = require('http');
-var { Server } = require("socket.io");
 
-var server = http.createServer(app);
+const prisma = require('../prisma');
+const app = require('../app');
+const debug = require('debug')('backend:server');
+const http = require('http');
+const { Server } = require("socket.io");
+const jwt = require("jsonwebtoken");
 
-// --- Socket.io on Port 3001 ---
-var io = new Server(3001, {
+const server = http.createServer(app);
+
+const io = new Server(3001, {
   cors: {
     origin: "*",
   },
 });
+
 console.log("Socket.io running on port 3001");
-// ------------------------------
+
+// SOCKET AUTH MIDDLEWARE
+io.use((socket, next) => {
+  console.log(socket.handshake.auth, "middleware");
+  const token = socket.handshake.auth?.token;
+
+  if (!token) {
+    return next(new Error("No auth token"));
+  }
+
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.SUPABASE_JWT_SECRET,
+      { algorithms: ["HS256"] }
+    );
+
+    socket.user = {
+      id: decoded.sub,
+      email: decoded.email,
+      role: decoded.role,
+    };
+
+    next();
+  } catch (err) {
+    console.error("Socket JWT Error:", err.message);
+    next(new Error("Invalid token"));
+  }
+});
 
 io.on("connection", (socket) => {
-  console.log("a user connected", socket.id)
-
-  // socket.on("chat message", (msg) => {
-  //   io.emit("chat message", msg);
-  // });
+  console.log("User connected:", socket.id, "UserID:", socket.user.id);
 
   socket.on("join_room", (roomId) => {
     socket.join(roomId);
-    console.log("user joined room", roomId);
+    console.log(`User ${socket.user.id} joined room ${roomId}`);
   });
 
-  socket.on("send_message", async (data) => {
-    const { roomId, message, senderId, receiverId } = data;
+  socket.on("send_message", async ({ roomId, message }) => {
     try {
-      await prisma.message.create({
+      const savedMessage = await prisma.messages.create({
         data: {
-          text: message,
-          senderId: senderId,
-          receiverId: receiverId
-        }
+          content: message,
+          senderId: socket.user.id,
+          roomId: roomId,
+        },
       });
+
+      io.to(roomId).emit("receive_message", {
+        id: savedMessage.id,
+        content: savedMessage.content,
+        senderId: socket.user.id,
+        roomId: roomId,
+        sentAt: savedMessage.sentAt,
+      });
+
     } catch (error) {
       console.error("Failed to save message:", error);
     }
-    io.to(roomId).emit("receive_message", data);
   });
 
   socket.on("disconnect", () => {
-    console.log("user disconnected", socket.id);
+    console.log("User disconnected:", socket.id);
   });
 });
 
-//server on port 3000
-var port = normalizePort(process.env.PORT || '3000');
+const port = normalizePort(process.env.PORT || '3000');
 app.set('port', port);
 
 server.listen(port);
@@ -61,25 +90,16 @@ server.on('error', onError);
 server.on('listening', onListening);
 
 function normalizePort(val) {
-  var port = parseInt(val, 10);
-
-  if (isNaN(port)) {
-    return val;
-  }
-
-  if (port >= 0) {
-    return port;
-  }
-
+  const port = parseInt(val, 10);
+  if (isNaN(port)) return val;
+  if (port >= 0) return port;
   return false;
 }
 
 function onError(error) {
-  if (error.syscall !== 'listen') {
-    throw error;
-  }
+  if (error.syscall !== 'listen') throw error;
 
-  var bind = typeof port === 'string'
+  const bind = typeof port === 'string'
     ? 'Pipe ' + port
     : 'Port ' + port;
 
@@ -87,19 +107,17 @@ function onError(error) {
     case 'EACCES':
       console.error(bind + ' requires elevated privileges');
       process.exit(1);
-      break;
     case 'EADDRINUSE':
       console.error(bind + ' is already in use');
       process.exit(1);
-      break;
     default:
       throw error;
   }
 }
 
 function onListening() {
-  var addr = server.address();
-  var bind = typeof addr === 'string'
+  const addr = server.address();
+  const bind = typeof addr === 'string'
     ? 'pipe ' + addr
     : 'port ' + addr.port;
   debug('Listening on ' + bind);

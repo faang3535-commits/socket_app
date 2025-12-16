@@ -1,144 +1,68 @@
-
 require('dotenv').config();
 const prisma = require('../../prisma');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 
 const userController = {
-  registerUser: async (req, res) => {
-    const { username, password } = req.body;
-    console.log(req.body);
-    if (!username || !password) {
-      return res.status(400).json({ message: 'Username and password are required' });
-    }
 
+  profile: async (req, res) => {
     try {
-      const existingUser = await prisma.user.findUnique({
-        where: { username: username }
-      });
+      const { username } = req.body;
 
-      if (existingUser) {
-        return res.status(400).json({ message: 'Username already exists' });
-      }
-
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(password, salt);
-
-      const newUser = await prisma.user.create({
-        data: {
-          username,
-          password: hashedPassword
-        }
-      });
-
-      // Create token
-      const token = jwt.sign(
-        { id: newUser.id, username: newUser.username },
-        process.env.JWT_SECRET || 'your_jwt_secret',
-        { expiresIn: '1h' }
-      );
-
-      res.status(201).json({
-        message: 'User registered successfully',
-        token,
-        user: {
-          id: newUser.id,
-          username: newUser.username
-        }
-      });
-    } catch (error) {
-      console.error("Register Error:", error);
-      res.status(500).json({ message: 'Internal Server Error' });
-    }
-  },
-
-  loginUser: async (req, res) => {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-      return res.status(400).json({ message: 'Please provide both username and password' });
-    }
-
-    try {
-      const user = await prisma.user.findUnique({
-        where: { username: username }
-      });
-
-      if (!user) {
-        return res.status(400).json({ message: 'Invalid credentials' });
-      }
-
-      const isMatch = await bcrypt.compare(password, user.password);
-
-      if (!isMatch) {
-        return res.status(400).json({ message: 'Invalid credentials' });
-      }
-
-      const token = jwt.sign(
-        { id: user.id, username: user.username },
-        process.env.JWT_SECRET || 'your_jwt_secret',
-        { expiresIn: '1d' }
-      );
-
-      res.json({
-        message: 'Login successful',
-        token,
-        user: {
-          id: user.id,
-          username: user.username
-        }
-      });
-    } catch (error) {
-      console.error("Login Error:", error);
-      res.status(500).json({ message: 'Internal Server Error' });
-    }
-  },
-
-  getProfile: async (req, res) => {
-    try {
-      const user = await prisma.user.findUnique({
+      const user = await prisma.users.upsert({
         where: { id: req.user.id },
-        select: { id: true, username: true }
-      });
+        update: { username },
+        create: {
+          id: req.user.id,
+          username,
+        },
+      }); 
+
       res.json(user);
     } catch (error) {
-      res.status(500).json({ message: 'Server Error' });
+      console.error(error);
+      res.status(500).json({ message: "Server Error" });
     }
   },
 
   getalluser: async (req, res) => {
     try {
-      const user = await prisma.user.findMany({
+      const users = await prisma.users.findMany({
         where: {
-          id: { not: req.user.id }
+          id: { not: req.user.id },
         },
-        select: { id: true, username: true }
+        select: {
+          id: true,
+          username: true,
+        },
       });
-      res.json(user);
+
+      res.json(users);
     } catch (error) {
-      res.status(500).json({ message: 'Server Error' });
+      console.error(error);
+      res.status(500).json({ message: "Server Error" });
     }
   },
 
   getMessages: async (req, res) => {
-    console.log(req.params.id, "id")
     try {
-      const messages = await prisma.message.findMany({
-        where: {
-          OR: [{
-            senderId: req.user.id,
-            receiverId: req.params.id,
-          }, {
-            senderId: req.params.id,
-            receiverId: req.user.id,
+      const { roomId } = req.params;
+      console.log('Fetching messages for room:', roomId);
+      const messages = await prisma.messages.findMany({
+        where: { roomId },
+        include: {
+          sender: {
+            select: {
+              id: true,
+              username: true,
+            },
           },
-          ],
         },
+        orderBy: { sentAt: "asc" },
       });
-      console.log(messages, "messages")
+
       res.json(messages);
     } catch (error) {
-      res.status(500).json({ message: 'Server Error' });
+      console.error(error);
+      res.status(500).json({ message: "Server Error" });
     }
   },
 };

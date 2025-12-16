@@ -1,25 +1,36 @@
-const jwt = require('jsonwebtoken');
+const jwt = require("jsonwebtoken");
 
 const authMiddleware = (req, res, next) => {
-  const token = req.header('Authorization');
-
-  if (!token) {
-    return res.status(401).json({ message: 'No token, authorization denied' });
+  const authHeader = req.headers.authorization;
+ 
+  if (!authHeader) {
+    return res.status(401).json({ message: "No token, authorization denied" });
   }
+  
+  const parts = authHeader.split(" ");
+  if (parts.length !== 2 || parts[0] !== "Bearer") {
+    return res.status(401).json({ message: "Token format is invalid" });
+  }
+  
+  const token = parts[1];
 
   try {
-    const bearer = token.split(' ');
-    const tokenValue = bearer[1];
-    
-    if (!tokenValue) {
-         return res.status(401).json({ message: 'Token format is invalid' }); 
-    }
+    const decoded = jwt.verify(
+      token,
+      process.env.SUPABASE_JWT_SECRET,
+      { algorithms: ["HS256"] }
+    );
+  
+    req.user = {
+      id: decoded.sub,  
+      email: decoded.email,
+      role: decoded.role,
+    };
 
-    const decoded = jwt.verify(tokenValue, process.env.JWT_SECRET || 'your_jwt_secret');
-    req.user = decoded;
     next();
   } catch (err) {
-    res.status(401).json({ message: 'Token is not valid' });
+    console.error("JWT Verification Error:", err.message);
+    return res.status(401).json({ message: "Token is not valid" });
   }
 };
 
