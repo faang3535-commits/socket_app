@@ -5,23 +5,25 @@ const FrontPage = () => {
     return (
         <div className="min-h-screen bg-white dark:bg-neutral-950 text-neutral-950 dark:text-white font-sans selection:bg-blue-500/30">
             <Navbar />
-            
-            <main className="pt-20 md:pt-24">
-                <section className="flex flex-col items-center justify-center min-h-[80vh] text-center px-4">
-                    <div className="max-w-4xl mx-auto">
-                        <h1 className="text-5xl md:text-7xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-teal-400">
-                            Connect Instantly, Chat Seamlessly
-                        </h1>
-                        <p className="mt-4 text-lg md:text-xl text-neutral-500 dark:text-neutral-400 max-w-2xl mx-auto">
-                            A powerful and intuitive chat application designed for modern teams and communities. Experience real-time messaging like never before.
-                        </p>
-                        <div className="mt-8 flex justify-center gap-4">
-                            <Link to="/register" className="px-8 py-3 bg-blue-600 text-white font-semibold rounded-full hover:bg-blue-700 transition-colors">
-                                Get Started for Free
-                            </Link>
-                            <Link to="#" className="px-8 py-3 bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 font-semibold rounded-full hover:bg-neutral-300 dark:hover:bg-neutral-700 transition-colors">
-                                Learn More
-                            </Link>
+
+            <main className="pt-20 md:pt-19">
+                <section className="min-h-[80vh] text-center bg-[radial-gradient(#ffffff33_1px,#181818_1px)] bg-size-[20px_20px]">
+                    <div className="flex flex-col items-center justify-center min-h-[80vh] w-full bg-[linear-gradient(180deg,rgba(255,255,255,0)_87%,rgba(24,24,24,1))]">
+                        <div className="max-w-4xl mx-auto ">
+                            <h1 className="text-5xl md:text-7xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-teal-400">
+                                Connect Instantly, Chat Seamlessly
+                            </h1>
+                            <p className="mt-4 text-lg md:text-xl text-neutral-500 dark:text-neutral-400 max-w-2xl mx-auto">
+                                A powerful and intuitive chat application designed for modern teams and communities. Experience real-time messaging like never before.
+                            </p>
+                            <div className="mt-8 flex justify-center gap-4">
+                                <Link to="/register" className="px-8 py-3 bg-blue-600 text-white font-semibold rounded-full hover:bg-blue-700 transition-colors">
+                                    Get Started for Free
+                                </Link>
+                                <Link to="#" className="px-8 py-3 bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 font-semibold rounded-full hover:bg-neutral-300 dark:hover:bg-neutral-700 transition-colors">
+                                    Learn More
+                                </Link>
+                            </div>
                         </div>
                     </div>
                 </section>

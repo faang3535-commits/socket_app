@@ -4,7 +4,7 @@ const prisma = require('../../prisma');
 const userController = {
 
   profile: async (req, res) => {
-    try {
+    try { 
       const { username } = req.body;
 
       const user = await prisma.users.upsert({

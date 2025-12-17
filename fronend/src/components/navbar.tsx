@@ -29,29 +29,33 @@ const HERO_ITEMS = [
 const Dropdown = () => {
   const navigate = useNavigate();
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button variant="default" className="flex items-center gap-2 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-blue-600">
           <span>Profile</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56 border dark:text-gray-300 border-neutral-200 dark:border-neutral-700 bg-transparent">
+      <DropdownMenuContent className="w-56 border dark:text-gray-300 border-neutral-200 dark:border-neutral-700 bg-transparent backdrop-blur-md">
         <DropdownMenuLabel>My Account</DropdownMenuLabel>
         <DropdownMenuSeparator className='bg-neutral-200 dark:bg-neutral-700' />
         {AUTH_ITEMS.map((item) => (
-          <DropdownMenuItem key={item.href}>
-            <Link to={item.href}>{item.label}</Link>
+          <DropdownMenuItem asChild>
+            <Link to={item.href} className="flex w-full items-center">
+              {item.label}
+            </Link>
           </DropdownMenuItem>
         ))}
-        <DropdownMenuItem><button
-          onClick={() => {
-            localStorage.clear();
-            navigate('/login');
-          }}
-          className="text-xs text-red-500 hover:text-red-700 font-medium"
-        >
-          Logout
-        </button></DropdownMenuItem>
+        <DropdownMenuItem>
+          <button
+            onClick={() => {
+              localStorage.clear();
+              navigate('/login');
+            }}
+            className="text-xs text-red-500 hover:text-red-700 font-medium"
+          >
+            Logout
+          </button>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -64,7 +68,7 @@ export default function Navbar() {
 
   useEffect(() => {
     const handleScroll = () => {
-      setScrolled(window.scrollY > 20);
+      setScrolled(window.scrollY > 5);
     };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
@@ -76,8 +80,8 @@ export default function Navbar() {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 border-b ${scrolled
-        ? 'bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md border-neutral-200 dark:border-neutral-800 py-3'
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 border-b border-neutral-200 dark:border-neutral-700 ${scrolled
+        ? 'bg-white/80 dark:bg-neutral-900/80 backdrop-blur-sm border-neutral-200 dark:border-neutral-800 py-3.5'
         : 'bg-transparent border-transparent py-5'
         }`}
     >
@@ -92,7 +96,7 @@ export default function Navbar() {
         </Link>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-8">
+        <nav className="hidden md:flex items-center gap-8 ">
           <ul className="flex gap-6">
             {NAV_ITEMS.map((item) => (
               <li key={item.href}>
@@ -108,12 +112,6 @@ export default function Navbar() {
               </li>
             ))}
           </ul>
-          <Link
-            to="/register"
-            className="px-4 py-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-sm font-semibold rounded-full hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-colors"
-          >
-            Get Started
-          </Link>
           <Dropdown />
         </nav>
 
