@@ -207,5 +207,7 @@
 }
 .dot-animation span:nth-child(3) {
   animation-delay: 0.4s;
+}.dot-animation span:nth-child(4) {
+  animation-delay: 0.6s;
 }
 

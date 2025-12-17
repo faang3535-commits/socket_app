@@ -139,7 +139,14 @@ const Chat = () => {
       socket.off('typing');
       socket.off('stop_typing');
     };
-  }, [socket,user.id])
+  }, [socket, selectedUser])
+
+  useEffect(() => {
+    if (!socket || !selectedUser) return;
+    const roomId = [user.id, selectedUser.id].sort().join('_');
+    socket.emit('join_room', roomId);
+    socket.emit('lastseen', { userId: selectedUser.id, roomId });     
+  }, [selectedUser]);
 
   return (
     <div className="flex h-screen bg-zinc-100 dark:bg-zinc-900 overflow-hidden">
@@ -169,7 +176,6 @@ const Chat = () => {
                   ${selectedUser?.id === u.id ? 'bg-white/20 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'}`}>
                   {u.username.charAt(0)}
                 </div>
-                {/* indicator dot could go here */}
               </div>
               <div className="flex-1 min-w-0">
                 <span className={`font-semibold block truncate ${selectedUser?.id === u.id ? 'text-white' : 'text-zinc-900 dark:text-zinc-100'}`}>
@@ -218,7 +224,7 @@ const Chat = () => {
                 return (
                   <>
                     <div key={index} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'} mb-4`}>
-                      <div key={"msg"+index} className={`flex max-w-[80%] md:max-w-[70%] ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end gap-2`}>
+                      <div key={"msg" + index} className={`flex max-w-[80%] md:max-w-[70%] ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end gap-2`}>
                         {!isMe && (
                           <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 shrink-0 flex items-center justify-center text-xs font-bold text-zinc-400">
                             {selectedUser?.username?.charAt(0) || 'U'}
@@ -247,6 +253,9 @@ const Chat = () => {
               })}
               <div ref={messagesEndRef} />
               {/* Typing indicator */}
+              <div className="text-xs text-zinc-400 mt-1 flex justify-end">
+                Last seen {/* {selectedUser?.lastSeen} */} 5 hours ago
+              </div>
               <div className={`flex w-full justify-start mb-4`}>
                 <div className={`flex max-w-[80%] md:max-w-[70%] flex-row items-end gap-2`}>
                   {isTyping && (
@@ -255,13 +264,10 @@ const Chat = () => {
                         {selectedUser?.username?.charAt(0) || 'U'}
                       </div>
                       <div className='bg-zinc-800 text-zinc-100 border border-zinc-700/50 rounded-sm rounded-bl-none px-4 py-1.5 text-sm shadow-md'>
-                        <p className="text-xs text-zinc-400 mt-1 dot-animation">Typing<span>.</span><span>.</span><span>.</span></p>
+                        <p className="text-xs text-zinc-400 mt-1 dot-animation">Typing<span>.</span><span>.</span><span>.</span><span>.</span></p>
                       </div>
                     </>
                   )}
-                </div>
-                <div className="text-xs text-zinc-400 mt-1">
-                  seen {/* {selectedUser?.lastSeen} */} 5 hours ago
                 </div>
               </div>
             </div>

@@ -19,7 +19,6 @@ console.log("Socket.io running on port 3001");
 
 // SOCKET AUTH MIDDLEWARE
 io.use((socket, next) => {
-  console.log(socket.handshake.auth, "middleware");
   const token = socket.handshake.auth?.token;
 
   if (!token) {
@@ -55,7 +54,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("send_message", async ({ roomId, message }) => {
-    console.log("User sent message:", socket.user.id);
     try {
       const savedMessage = await prisma.messages.create({
         data: {
@@ -79,17 +77,20 @@ io.on("connection", (socket) => {
   });
 
   socket.on("typing", ({ roomId }) => {
-    console.log("User typing:", socket.user.id);
     socket.to(roomId).emit("typing", {
       from: socket.user.id,
     });
   });
 
   socket.on("stop_typing", ({ roomId }) => {
-    console.log("User stopped typing:", socket.user.id);
     socket.to(roomId).emit("stop_typing", {
       from: socket.user.id,
     });
+  });
+
+  socket.on("lastseen", ({ userId, roomId }) => {
+    console.log("lastseen *** *** ***" , Date.now())
+    console.log("User disconnected *** *** ***:", roomId);
   });
 
   socket.on("disconnect", () => {
