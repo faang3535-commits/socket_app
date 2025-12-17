@@ -5,6 +5,8 @@ import { MenuIcon, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { DrawerContent, HeaderDrawer } from '@/UI/navbarUI/navbarUI';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
 
 const NAV_ITEMS = [
   { href: '/', label: 'Home' },
@@ -23,6 +25,37 @@ const HERO_ITEMS = [
   { id: 2, classname: 'bg-gradient-to-br from-blue-400 to-indigo-600', title: 'Scalable' },
   { id: 3, classname: 'bg-gradient-to-br from-emerald-400 to-teal-500', title: 'Secure' },
 ];
+
+const Dropdown = () => {
+  const navigate = useNavigate();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="default" className="flex items-center gap-2 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-blue-600">
+          <span>Profile</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-56 border dark:text-gray-300 border-neutral-200 dark:border-neutral-700 bg-transparent">
+        <DropdownMenuLabel>My Account</DropdownMenuLabel>
+        <DropdownMenuSeparator className='bg-neutral-200 dark:bg-neutral-700' />
+        {AUTH_ITEMS.map((item) => (
+          <DropdownMenuItem key={item.href}>
+            <Link to={item.href}>{item.label}</Link>
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuItem><button
+          onClick={() => {
+            localStorage.clear();
+            navigate('/login');
+          }}
+          className="text-xs text-red-500 hover:text-red-700 font-medium"
+        >
+          Logout
+        </button></DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
 
 export default function Navbar() {
   const [headerOpen, setHeaderOpen] = useState(false);
@@ -81,6 +114,7 @@ export default function Navbar() {
           >
             Get Started
           </Link>
+          <Dropdown />
         </nav>
 
         {/* Mobile Menu Trigger */}
@@ -135,6 +169,7 @@ export default function Navbar() {
                 >
                   Get Started Now
                 </Link>
+
               </div>
             </DrawerContent>
           </HeaderDrawer>

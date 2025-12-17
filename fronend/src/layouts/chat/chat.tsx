@@ -15,14 +15,14 @@ const Chat = () => {
   const session = sessionString ? JSON.parse(sessionString) : null;
   const rawUser = session?.user || {};
   const token = session?.access_token;
-  
+
   const user = {
     id: rawUser.id,
     email: rawUser.email,
     username: rawUser.user_metadata?.username || rawUser.email?.split('@')[0] || 'Guest',
     ...rawUser
   };
-  
+
   useEffect((): any => {
     if (!token) navigate('/login');
     const fetchUsers = async () => {
@@ -35,7 +35,7 @@ const Chat = () => {
     };
     fetchUsers();
   }, [navigate, user.id]);
-  
+
   useEffect(() => {
     if (!user.id) {
       console.warn("Socket initialization skipped: user.id is missing or invalid", user);
@@ -55,18 +55,18 @@ const Chat = () => {
       newSocket.disconnect();
     };
   }, [user.id]);
-  
+
   useEffect(() => {
     if (socket && selectedUser && user.id) {
       const roomId = [user.id, selectedUser.id].sort().join('_');
       socket.emit('join_room', roomId);
     }
   }, [socket, selectedUser, user.id]);
-  
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-  
+
   const loadChatAndJoinRoom = async (userToChatWith: any) => {
     setSelectedUser(userToChatWith);
     setMessages([]);
@@ -102,17 +102,16 @@ const Chat = () => {
     <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden">
       {/* Sidebar / Contacts */}
       <aside className="w-64 bg-white dark:bg-gray-800 border-r dark:border-gray-700 flex flex-col">
-        <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
-          <span className="font-bold text-lg dark:text-white">Contacts</span>
+        <div className="p-4 border-b dark:border-gray-700 flex gap-4 items-center">
           <button
             onClick={() => {
-              localStorage.clear();
-              navigate('/login');
+              navigate('/');
             }}
             className="text-xs text-red-500 hover:text-red-700 font-medium"
           >
-            Logout
+            
           </button>
+          <span className="font-bold text-lg dark:text-white">Contacts</span>
         </div>
         <div className="flex-1 overflow-y-auto">
           {users.map((u) => (
