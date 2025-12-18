@@ -9,5 +9,9 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // Ensure Supabase is pre‑bundled so Vite can find its ESM files
+  optimizeDeps: {
+    include: ["@supabase/supabase-js"],
+  },
 })
 

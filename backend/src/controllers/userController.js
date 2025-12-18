@@ -4,7 +4,7 @@ const prisma = require('../../prisma');
 const userController = {
 
   profile: async (req, res) => {
-    try { 
+    try {
       const { username } = req.body;
 
       const user = await prisma.users.upsert({
@@ -14,7 +14,7 @@ const userController = {
           id: req.user.id,
           username,
         },
-      }); 
+      });
 
       res.json(user);
     } catch (error) {
@@ -45,7 +45,6 @@ const userController = {
   getMessages: async (req, res) => {
     try {
       const { roomId } = req.params;
-      console.log('Fetching messages for room:', roomId);
       const messages = await prisma.messages.findMany({
         where: { roomId },
         include: {
@@ -58,8 +57,16 @@ const userController = {
         },
         orderBy: { sentAt: "asc" },
       });
-
-      res.json(messages);
+      const lastSeen = await prisma.rooms.findMany({
+        where: {
+          roomId: roomId,
+        },
+        select: {
+          userId: true,
+          lastSeen: true,
+        },
+      });
+      res.json({ messages, lastSeen });
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Server Error" });

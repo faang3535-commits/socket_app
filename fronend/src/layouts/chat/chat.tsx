@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../../services/axios';
-import { ArrowLeft, Key, Send } from 'lucide-react';
+import { ArrowLeft, Send } from 'lucide-react';
+import FileUploadDropzone from '@/components/fileUploader';
 
 const Chat = () => {
   const [messages, setMessages] = useState<any[]>([]);
@@ -11,12 +12,15 @@ const Chat = () => {
   const [users, setUsers] = useState<any[]>([]);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isTyping, setIsTyping] = useState(false);
+  const [lastSeenChat, setLastSeenChat] = useState<any>([]);
   const messagesEndRef = useRef<null | HTMLDivElement>(null);
   const navigate = useNavigate();
   const sessionString = localStorage.getItem('sb-bivjfuifyqourtgzxrkj-auth-token');
   const session = sessionString ? JSON.parse(sessionString) : null;
   const rawUser = session?.user || {};
   const token = session?.access_token;
+  const typingTimeoutRef = useRef<any>(null);
+  const prevSelectedUser = useRef<any>(selectedUser);
 
   const user = {
     id: rawUser.id,
@@ -38,6 +42,43 @@ const Chat = () => {
     };
     fetchUsers();
   }, [navigate, user.id]);
+
+  const loadChatAndJoinRoom = async (userToChatWith: any) => {
+    setSelectedUser(userToChatWith);
+    setMessages([]);
+    try {
+      const roomId = [user.id, userToChatWith.id].sort().join('_');
+      const historyData = await apiService.get(`/users/messages/${roomId}`);
+      setMessages(historyData.messages);
+
+      const lastSeenData = historyData.lastSeen.find((u: any) => u.userId == user.id)?.lastSeen;
+      if (lastSeenData) {
+        console.log(lastSeenData)
+        const seen = new Date(lastSeenData).getTime();
+        const cur = new Date().getTime();
+
+        const diffInMs = Math.abs(cur - seen);
+        const diffInMin = Math.floor(diffInMs / (1000 * 60));
+        const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+        const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+        const diffInWeeks = Math.floor(diffInMs / (1000 * 60 * 60 * 24 * 7));
+        if (diffInMin < 1) {
+          setLastSeenChat('Just now');
+        } else if (diffInHours < 1) {
+          setLastSeenChat(`${diffInMin} min ago`);
+        } else if (diffInDays < 1) {
+          setLastSeenChat(`${diffInHours} hours ago`);
+        } else if (diffInWeeks < 1) {
+          setLastSeenChat(`${diffInDays} days ago`);
+        } else {
+          setLastSeenChat(`${diffInWeeks} weeks ago`);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching chat history:', error);
+      setMessages([]);
+    }
+  };
 
   //connection socket
   useEffect(() => {
@@ -68,24 +109,6 @@ const Chat = () => {
     }
   }, [socket, selectedUser, user.id]);
 
-  //scroller
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const loadChatAndJoinRoom = async (userToChatWith: any) => {
-    setSelectedUser(userToChatWith);
-    setMessages([]);
-    try {
-      const roomId = [user.id, userToChatWith.id].sort().join('_');
-      const historyData = await apiService.get(`/users/messages/${roomId}`);
-      setMessages(historyData);
-    } catch (error) {
-      console.error('Error fetching chat history:', error);
-      setMessages([]);
-    }
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || !socket || !selectedUser) {
@@ -105,7 +128,10 @@ const Chat = () => {
     setInput('');
   };
 
-  const typingTimeoutRef = useRef<any>(null);
+  //scroller
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const handleTyping = () => {
     if (!socket || !user.id) return;
@@ -143,9 +169,14 @@ const Chat = () => {
 
   useEffect(() => {
     if (!socket || !selectedUser) return;
-    const roomId = [user.id, selectedUser.id].sort().join('_');
-    socket.emit('join_room', roomId);
-    socket.emit('lastseen', { userId: selectedUser.id, roomId });     
+    if (prevSelectedUser.current !== null) {
+      const roomId = [user.id, prevSelectedUser.current.id].sort().join('_');
+      console.log(roomId, "roomid");
+      console.log(prevSelectedUser.current.id, "prevSelectedUser.current.id");
+      socket.emit('lastseen', { userId: prevSelectedUser.current.id, roomId });
+    }
+    prevSelectedUser.current = selectedUser;
+    setLastSeenChat('')
   }, [selectedUser]);
 
   return (
@@ -223,27 +254,47 @@ const Chat = () => {
 
                 return (
                   <>
-                    <div key={index} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'} mb-4`}>
-                      <div key={"msg" + index} className={`flex max-w-[80%] md:max-w-[70%] ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end gap-2`}>
+                    <div key={index} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'} mb-1 px-4`}>
+                      <div className={`flex max-w-[85%] md:max-w-[70%] items-end gap-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+
+                        {/* Profile Circle (Optional, WhatsApp usually only shows this in Groups) */}
                         {!isMe && (
-                          <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 shrink-0 flex items-center justify-center text-xs font-bold text-zinc-400">
+                          <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 shrink-0 flex items-center justify-center text-xs font-bold text-zinc-400 mb-1">
                             {selectedUser?.username?.charAt(0) || 'U'}
                           </div>
                         )}
+
+                        {/* Message Bubble */}
                         <div
-                          className={`relative px-4 py-1.5 text-sm shadow-md ${isMe
-                            ? 'bg-blue-600 text-white rounded-sm rounded-br-none'
-                            : 'bg-zinc-800 text-zinc-100 border border-zinc-700/50 rounded-sm rounded-bl-none'
+                          className={`relative px-3 py-1.5 text-sm shadow-sm min-w-[60px] ${isMe
+                            ? 'bg-blue-600 text-white rounded-md rounded-tr-none' // Right Tail shape
+                            : 'bg-zinc-800 text-zinc-100 border border-zinc-700/50 rounded-md rounded-tl-none' // Left Tail shape
                             }`}
                         >
+                          {/* WhatsApp style "Tail" SVG */}
+                          <div className={`absolute top-0 w-2 h-2 ${isMe ? '-right-1 text-blue-600' : '-left-1 text-zinc-800'}`}>
+                            <svg viewBox="0 0 8 8" className={isMe ? '' : 'transform scale-x-[-2]'} fill="currentColor" >
+                              <path d="M0 0 v8 q4 0 8 -8 Z" fill="currentColor" stroke="currentColor" strokeWidth="0.5" />
+                            </svg>
+
+                          </div>
+
                           {!isMe && (
-                            <div className="text-[11px] font-bold text-blue-400 mb-1 leading-none">
+                            <div className="text-[11px] font-bold text-blue-400 mb-0.5 leading-none">
                               {selectedUser?.username}
                             </div>
                           )}
-                          <p className="whitespace-pre-wrap leading-relaxed text-left">{msg.message || msg.content}</p>
-                          <div className={`text-[10px] mt-1 text-right w-full opacity-70 ${isMe ? 'text-blue-100' : 'text-zinc-400'}`}>
-                            {msg.time || new Date(msg.createdAt || msg.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+
+                          {/* Content and Timestamp Container */}
+                          <div className="flex flex-wrap items-end justify-end gap-x-4">
+                            <p className="whitespace-pre-wrap leading-relaxed flex-1 text-left">
+                              {msg.message || msg.content}
+                            </p>
+
+                            {/* WhatsApp-style inline timestamp */}
+                            <div className={`text-[10px] h-4 flex items-center opacity-70 ${isMe ? 'text-blue-100' : 'text-zinc-400'}`}>
+                              {msg.time || new Date(msg.createdAt || msg.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -253,10 +304,11 @@ const Chat = () => {
               })}
               <div ref={messagesEndRef} />
               {/* Typing indicator */}
-              <div className="text-xs text-zinc-400 mt-1 flex justify-end">
-                Last seen {/* {selectedUser?.lastSeen} */} 5 hours ago
-              </div>
-              <div className={`flex w-full justify-start mb-4`}>
+
+              {messages.find((msg) => msg.senderId === user.id) && lastSeenChat.length > 0 && <div className="text-xs text-zinc-400 mt-1 flex justify-end">
+                Last seen {lastSeenChat}
+              </div>}
+              <div className={`flex w-full justify-start mb-4 px-4`}>
                 <div className={`flex max-w-[80%] md:max-w-[70%] flex-row items-end gap-2`}>
                   {isTyping && (
                     <>
@@ -274,6 +326,7 @@ const Chat = () => {
 
             {/* Message Input */}
             <form onSubmit={handleSubmit} className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md p-4 sm:p-5 border-t dark:border-zinc-800 flex items-center gap-4 sticky bottom-0 z-10">
+              <FileUploadDropzone />
               <input
                 type="text"
                 className="flex-1 bg-zinc-100 dark:bg-zinc-800/50 border-transparent border focus:border-blue-500 rounded-full px-5 py-3.5 focus:ring-4 focus:ring-blue-500/10 dark:text-white outline-none transition-all duration-300 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
@@ -286,7 +339,7 @@ const Chat = () => {
                 disabled={!input.trim()}
                 className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:saturate-0 disabled:cursor-not-allowed text-white rounded-full p-3.5 flex items-center justify-center transition-all shadow-lg shadow-blue-500/30 transform hover:scale-105 active:scale-95"
               >
-                <Send size={20} className="ml-0.5" />
+                <Send size={20} className="mr-0.5 mt-0.5" />
               </button>
             </form>
           </>
