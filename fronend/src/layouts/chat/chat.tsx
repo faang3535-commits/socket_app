@@ -156,9 +156,7 @@ const Chat = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log(input, socket, selectedUser, 'input, socket, selectedUser');
-    if ((!input.trim() || !socket || !selectedUser)) return;
-    console.log(input, '¥¥¥¥¥¥¥input');
+    if ((!input.trim() && !files) || !socket || !selectedUser) return;
     let fileUrls: string[] = [];
 
     if (files && files.length > 0) {
@@ -180,12 +178,10 @@ const Chat = () => {
             console.error('Signing Error:', error.message);
           } else if (data?.signedUrl) {
             fileUrls.push(data.signedUrl);
-            console.log("Success! Signed URL:", data.signedUrl);
           }
         }
       }
     }
-    console.log(fileUrls, 'fileUrls /*//*/*/*/*');
     const roomId = [user.id, selectedUser.id].sort().join('_');
     const messageData = {
       roomId,
@@ -333,16 +329,13 @@ const Chat = () => {
                         )}
 
                         <div className="flex flex-col gap-2">
-                          {msg.files && msg.files.length > 0 && (
+                          {msg.file && msg.file.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1">
-                              {msg.files.map((url: string, i: number) => (
                                 <img
-                                  key={i}
-                                  src={url}
+                                  src={msg.file}
                                   alt="attachment"
                                   className="max-w-full rounded-md object-cover max-h-60"
                                 />
-                              ))}
                             </div>
                           )}
                           <div className="flex flex-wrap items-end justify-end gap-x-4">

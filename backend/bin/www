@@ -54,7 +54,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("send_message", async ({ roomId, message, files }) => {
-    console.log(files, 'files');
     try {
       const savedMessage = await prisma.messages.create({
         data: {
@@ -64,7 +63,6 @@ io.on("connection", (socket) => {
           roomId: roomId,
         },
       });
-console.log(savedMessage, 'savedMessage');
       io.to(roomId).emit("receive_message", {
         id: savedMessage.id, 
         content: savedMessage.content,

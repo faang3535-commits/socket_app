@@ -4,7 +4,6 @@ const s3 = require("../config/s3");
 const fileUpload = async (req, res) => {
    try {
       const { file } = req;
-      // console.log(file, "file");
       if (!file) {
          console.log("No file uploaded");
          return res.status(400).json({ message: "No file uploaded" });
