@@ -53,20 +53,23 @@ io.on("connection", (socket) => {
     // console.log (`User ${socket.user.id} joined room ${roomId}`);
   });
 
-  socket.on("send_message", async ({ roomId, message }) => {
+  socket.on("send_message", async ({ roomId, message, files }) => {
+    console.log(files, 'files');
     try {
       const savedMessage = await prisma.messages.create({
         data: {
           content: message,
+          file: files[0],
           senderId: socket.user.id,
           roomId: roomId,
         },
       });
-
+console.log(savedMessage, 'savedMessage');
       io.to(roomId).emit("receive_message", {
-        id: savedMessage.id,
+        id: savedMessage.id, 
         content: savedMessage.content,
         senderId: socket.user.id,
+        file: savedMessage.file,
         roomId: roomId,
         sentAt: savedMessage.sentAt,
       });
@@ -90,7 +93,6 @@ io.on("connection", (socket) => {
 
   socket.on("lastseen", async ({ userId, roomId }) => {
     try {
-      console.log("Last seen updated:", userId, roomId);
     const updatedRoom = await prisma.rooms.upsert({
       where: {
         roomId_userId: {
@@ -108,14 +110,12 @@ io.on("connection", (socket) => {
       },
     });
 
-    // console.log("Last seen updated:", updatedRoom);
   } catch (error) {
     console.error("Failed to update last seen:", error);
   }
   });
 
   socket.on("disconnect", () => {
-    // console.log("User disconnected:", socket.id);
   });
 });
 

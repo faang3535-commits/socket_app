@@ -7,35 +7,38 @@ import {
    FileUploaderItem,
 } from '@/components/ui/file-upload';
 import { Paperclip, Upload } from 'lucide-react';
-// import Image from 'next/image';
-import { useState } from 'react';
 import type { DropzoneOptions } from 'react-dropzone';
 
-const FileUploadDropzone = () => {
-   const [files, setFiles] = useState<File[] | null>([]);
+interface FileUploadDropzoneProps {
+   value: File[] | null;
+   onValueChange: (files: File[] | null) => void;
+}
+
+const FileUploadDropzone = ({ value, onValueChange }: FileUploadDropzoneProps) => {
    const dropzone = {
       accept: {
          'image/*': ['.jpg', '.jpeg', '.png'],
       },
       multiple: true,
-      maxFiles: 4,
+      maxFiles: 1,
       maxSize: 1 * 1024 * 1024,
    } satisfies DropzoneOptions;
-
+   
    return (
       <div className=''>
          <div
-            className={`${files?.length == 0 && 'flex gap-0'
-               } relative border dark:bg-neutral-950 bg-neutral-50 rounded-md p-2 w-fit mx-auto`}
-         >
+            className={`${value?.length == 0 && 'flex gap-0'
+            } relative border dark:bg-neutral-950 bg-neutral-50 rounded-md p-2 w-fit mx-auto`}
+            >
             <FileUploader
-               value={files}
+               reSelect={true}
+               value={value}
                orientation='vertical'
-               onValueChange={setFiles}
+               onValueChange={onValueChange}
                className='w-fit'
                dropzoneOptions={dropzone}
             >
-               {files?.length === 0 ? (
+               {value?.length === 0 ? (
                   // Layout when no files are present
                   <div className='flex items-center gap-2'>
                      <FileInput
@@ -58,7 +61,7 @@ const FileUploadDropzone = () => {
                            <span className='sr-only'>Select your files</span>
                         </FileInput>
                         <FileUploaderContent className='flex items-start flex-row gap-1'>
-                           {files?.map((file, i) => (
+                           {value?.map((file, i) => (
                               <FileUploaderItem
                                  key={i}
                                  index={i}

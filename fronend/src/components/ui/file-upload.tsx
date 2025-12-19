@@ -233,7 +233,7 @@ export const FileUploader = forwardRef<
           className={cn(
             'grid w-full focus:outline-hidden overflow-hidden ',
             className,
-            {
+            {   
               'gap-2': value && value.length > 0,
             }
           )}

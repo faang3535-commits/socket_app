@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiService } from '../../services/axios';
 import { ArrowLeft, Send } from 'lucide-react';
 import FileUploadDropzone from '@/components/fileUploader';
+import { supabase } from '@/lib/supabase';
 
 const Chat = () => {
   const [messages, setMessages] = useState<any[]>([]);
@@ -21,6 +22,7 @@ const Chat = () => {
   const token = session?.access_token;
   const typingTimeoutRef = useRef<any>(null);
   const prevSelectedUser = useRef<any>(selectedUser);
+  const [files, setFiles] = useState<File[] | null>([]);
 
   const user = {
     id: rawUser.id,
@@ -29,9 +31,10 @@ const Chat = () => {
     ...rawUser
   };
 
-  //navigatior
+  // Navigate and fetch users
   useEffect((): any => {
     if (!token) navigate('/login');
+
     const fetchUsers = async () => {
       try {
         const data = await apiService.get('/users/allusers');
@@ -40,6 +43,7 @@ const Chat = () => {
         console.error('Error fetching users:', error);
       }
     };
+
     fetchUsers();
   }, [navigate, user.id]);
 
@@ -53,26 +57,19 @@ const Chat = () => {
 
       const lastSeenData = historyData.lastSeen.find((u: any) => u.userId == user.id)?.lastSeen;
       if (lastSeenData) {
-        console.log(lastSeenData)
         const seen = new Date(lastSeenData).getTime();
         const cur = new Date().getTime();
-
         const diffInMs = Math.abs(cur - seen);
         const diffInMin = Math.floor(diffInMs / (1000 * 60));
         const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
         const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
         const diffInWeeks = Math.floor(diffInMs / (1000 * 60 * 60 * 24 * 7));
-        if (diffInMin < 1) {
-          setLastSeenChat('Just now');
-        } else if (diffInHours < 1) {
-          setLastSeenChat(`${diffInMin} min ago`);
-        } else if (diffInDays < 1) {
-          setLastSeenChat(`${diffInHours} hours ago`);
-        } else if (diffInWeeks < 1) {
-          setLastSeenChat(`${diffInDays} days ago`);
-        } else {
-          setLastSeenChat(`${diffInWeeks} weeks ago`);
-        }
+
+        if (diffInMin < 1) setLastSeenChat('Just now');
+        else if (diffInHours < 1) setLastSeenChat(`${diffInMin} min ago`);
+        else if (diffInDays < 1) setLastSeenChat(`${diffInHours} hours ago`);
+        else if (diffInWeeks < 1) setLastSeenChat(`${diffInDays} days ago`);
+        else setLastSeenChat(`${diffInWeeks} weeks ago`);
       }
     } catch (error) {
       console.error('Error fetching chat history:', error);
@@ -80,28 +77,30 @@ const Chat = () => {
     }
   };
 
-  //connection socket
+  // Socket connection
   useEffect(() => {
-    if (!user.id) {
-      console.warn("Socket initialization skipped: user.id is missing or invalid", user);
-      return;
-    }
+    if (!user.id) return;
+
     const newSocket = io('http://localhost:3001', {
-      auth: { token: token },
+      auth: { token },
     });
+
     newSocket.on('connect_error', (err: any) => {
       console.error("Socket connection error:", err.message);
     });
-    setSocket(newSocket);
+
     newSocket.on('receive_message', (msg: any) => {
       setMessages((prev) => [...prev, msg]);
     });
+
+    setSocket(newSocket);
+
     return () => {
       newSocket.disconnect();
     };
   }, [user.id]);
 
-  //room joiner
+  // Join room
   useEffect(() => {
     if (socket && selectedUser && user.id) {
       const roomId = [user.id, selectedUser.id].sort().join('_');
@@ -109,39 +108,19 @@ const Chat = () => {
     }
   }, [socket, selectedUser, user.id]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || !socket || !selectedUser) {
-      console.error('Send message failed:', { socket, input, selectedUser });
-      return;
-    }
-    const roomId = [user.id, selectedUser.id].sort().join('_');
-    const messageData = {
-      roomId,
-      message: input,
-      senderId: user.id,
-      receiverId: selectedUser.id,
-      username: user.username,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-    socket.emit('send_message', messageData);
-    setInput('');
-  };
-
-  //scroller
+  // Scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Typing indicator
   const handleTyping = () => {
-    if (!socket || !user.id) return;
-
+    if (!socket || !user.id || !selectedUser) return;
     const roomId = [user.id, selectedUser.id].sort().join('_');
 
     socket.emit('typing', { roomId });
 
     clearTimeout(typingTimeoutRef.current);
-
     typingTimeoutRef.current = setTimeout(() => {
       socket.emit('stop_typing', { roomId });
     }, 2000);
@@ -149,35 +128,116 @@ const Chat = () => {
 
   useEffect(() => {
     if (!socket) return;
+
     socket.on('typing', ({ from }: { from: string }) => {
-      if (from !== user.id) {
-        setIsTyping(true);
-      }
+      if (from !== user.id) setIsTyping(true);
     });
 
     socket.on('stop_typing', ({ from }: { from: string }) => {
-      if (from !== user.id) {
-        setIsTyping(false);
-      }
+      if (from !== user.id) setIsTyping(false);
     });
 
     return () => {
       socket.off('typing');
       socket.off('stop_typing');
     };
-  }, [socket, selectedUser])
+  }, [socket, selectedUser]);
 
+  // Update last seen
   useEffect(() => {
     if (!socket || !selectedUser) return;
     if (prevSelectedUser.current !== null) {
       const roomId = [user.id, prevSelectedUser.current.id].sort().join('_');
-      console.log(roomId, "roomid");
-      console.log(prevSelectedUser.current.id, "prevSelectedUser.current.id");
       socket.emit('lastseen', { userId: prevSelectedUser.current.id, roomId });
     }
     prevSelectedUser.current = selectedUser;
-    setLastSeenChat('')
+    setLastSeenChat('');
   }, [selectedUser]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log(input, socket, selectedUser, 'input, socket, selectedUser');
+    if ((!input.trim() || !socket || !selectedUser)) return;
+    console.log(input, '¥¥¥¥¥¥¥input');
+    let fileUrls: string[] = [];
+
+    if (files && files.length > 0) {
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await apiService.post('/upload/upload', formData);
+
+        if (response?.path) {
+          const filePath = response.path;
+
+          const { data, error } = await supabase
+            .storage
+            .from('Dev')
+            .createSignedUrl(filePath, 3600);
+
+          if (error) {
+            console.error('Signing Error:', error.message);
+          } else if (data?.signedUrl) {
+            fileUrls.push(data.signedUrl);
+            console.log("Success! Signed URL:", data.signedUrl);
+          }
+        }
+      }
+    }
+    console.log(fileUrls, 'fileUrls /*//*/*/*/*');
+    const roomId = [user.id, selectedUser.id].sort().join('_');
+    const messageData = {
+      roomId,
+      message: input,
+      files: fileUrls,
+      senderId: user.id,
+      receiverId: selectedUser.id,
+      username: user.username,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    socket.emit('send_message', messageData);
+    setInput('');
+    setFiles([]);
+  };
+
+  // Refresh signed URLs every hour
+  // const refreshFileUrls = async () => {
+  //   if (messages.length === 0) return;
+
+  //   const updatedMessages = await Promise.all(messages.map(async (msg) => {
+  //     if (msg.files && msg.files.length > 0) {
+  //       const refreshedUrls: string[] = [];
+  //       for (const url of msg.files) {
+  //         try {
+  //           const path = url.split('?')[0].replace(`${supabase.storageUrl}/storage/v1/object/public/Dev/`, '');
+  //           const { data, error } = await supabase
+  //             .storage
+  //             .from('Dev')
+  //             .createSignedUrl(path, 3600);
+
+  //           if (!error && data?.signedUrl) {
+  //             refreshedUrls.push(data.signedUrl);
+  //           }
+  //         } catch (err) {
+  //           console.error('Error refreshing signed URL:', err);
+  //         }
+  //       }
+  //       return { ...msg, files: refreshedUrls };
+  //     }
+  //     return msg;
+  //   }));
+
+  //   setMessages(updatedMessages);
+  // };
+
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     refreshFileUrls();
+  //   }, 60 * 60 * 1000); // 1 hour
+
+  //   return () => clearInterval(interval);
+  // }, [messages]);
 
   return (
     <div className="flex h-screen bg-zinc-100 dark:bg-zinc-900 overflow-hidden">
@@ -227,14 +287,11 @@ const Chat = () => {
           <>
             {/* Chat Header */}
             <header className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md shadow-sm p-4 border-b dark:border-zinc-800 flex items-center gap-3 z-10 sticky top-0">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-800 flex items-center justify-center font-bold uppercase text-white shadow-md">
+              <div className="w-10 h-10 rounded-full bg-linear-to-tr from-blue-600 to-indigo-800 flex items-center justify-center font-bold uppercase text-white shadow-md">
                 {selectedUser.username.charAt(0)}
               </div>
               <div>
                 <h2 className="text-base font-bold text-zinc-900 dark:text-white leading-tight">{selectedUser.username}</h2>
-                {/* <p className="text-xs text-green-500 font-medium flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Online
-                 </p> */}
               </div>
             </header>
 
@@ -253,45 +310,43 @@ const Chat = () => {
                 }
 
                 return (
-                  <>
-                    <div key={index} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'} mb-1 px-4`}>
-                      <div className={`flex max-w-[85%] md:max-w-[70%] items-end gap-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                  <div key={index} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'} mb-1 px-4`}>
+                    <div className={`flex max-w-[85%] md:max-w-[70%] items-end gap-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                      {!isMe && (
+                        <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 shrink-0 flex items-center justify-center text-xs font-bold text-zinc-400 mb-1">
+                          {selectedUser?.username?.charAt(0) || 'U'}
+                        </div>
+                      )}
+                      <div className={`relative px-3 py-1.5 text-sm shadow-sm min-w-[60px] ${isMe
+                        ? 'bg-blue-600 text-white rounded-md rounded-tr-none'
+                        : 'bg-zinc-800 text-zinc-100 border border-zinc-700/50 rounded-md rounded-tl-none'}`}>
+                        <div className={`absolute top-0 w-2 h-2 ${isMe ? '-right-1 text-blue-600' : '-left-1 text-zinc-800'}`}>
+                          <svg viewBox="0 0 8 8" className={isMe ? '' : 'transform scale-x-[-2]'} fill="currentColor">
+                            <path d="M0 0 v8 q4 0 8 -8 Z" fill="currentColor" stroke="currentColor" strokeWidth="0.5" />
+                          </svg>
+                        </div>
 
-                        {/* Profile Circle (Optional, WhatsApp usually only shows this in Groups) */}
                         {!isMe && (
-                          <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 shrink-0 flex items-center justify-center text-xs font-bold text-zinc-400 mb-1">
-                            {selectedUser?.username?.charAt(0) || 'U'}
+                          <div className="text-[11px] font-bold text-blue-400 mb-0.5 leading-none">
+                            {selectedUser?.username}
                           </div>
                         )}
 
-                        {/* Message Bubble */}
-                        <div
-                          className={`relative px-3 py-1.5 text-sm shadow-sm min-w-[60px] ${isMe
-                            ? 'bg-blue-600 text-white rounded-md rounded-tr-none' // Right Tail shape
-                            : 'bg-zinc-800 text-zinc-100 border border-zinc-700/50 rounded-md rounded-tl-none' // Left Tail shape
-                            }`}
-                        >
-                          {/* WhatsApp style "Tail" SVG */}
-                          <div className={`absolute top-0 w-2 h-2 ${isMe ? '-right-1 text-blue-600' : '-left-1 text-zinc-800'}`}>
-                            <svg viewBox="0 0 8 8" className={isMe ? '' : 'transform scale-x-[-2]'} fill="currentColor" >
-                              <path d="M0 0 v8 q4 0 8 -8 Z" fill="currentColor" stroke="currentColor" strokeWidth="0.5" />
-                            </svg>
-
-                          </div>
-
-                          {!isMe && (
-                            <div className="text-[11px] font-bold text-blue-400 mb-0.5 leading-none">
-                              {selectedUser?.username}
+                        <div className="flex flex-col gap-2">
+                          {msg.files && msg.files.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {msg.files.map((url: string, i: number) => (
+                                <img
+                                  key={i}
+                                  src={url}
+                                  alt="attachment"
+                                  className="max-w-full rounded-md object-cover max-h-60"
+                                />
+                              ))}
                             </div>
                           )}
-
-                          {/* Content and Timestamp Container */}
                           <div className="flex flex-wrap items-end justify-end gap-x-4">
-                            <p className="whitespace-pre-wrap leading-relaxed flex-1 text-left">
-                              {msg.message || msg.content}
-                            </p>
-
-                            {/* WhatsApp-style inline timestamp */}
+                            <p className="whitespace-pre-wrap leading-relaxed flex-1 text-left">{msg.message || msg.content}</p>
                             <div className={`text-[10px] h-4 flex items-center opacity-70 ${isMe ? 'text-blue-100' : 'text-zinc-400'}`}>
                               {msg.time || new Date(msg.createdAt || msg.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
                             </div>
@@ -299,15 +354,15 @@ const Chat = () => {
                         </div>
                       </div>
                     </div>
-                  </>
+                  </div>
                 );
               })}
               <div ref={messagesEndRef} />
-              {/* Typing indicator */}
 
-              {messages.find((msg) => msg.senderId === user.id) && lastSeenChat.length > 0 && <div className="text-xs text-zinc-400 mt-1 flex justify-end">
-                Last seen {lastSeenChat}
-              </div>}
+              {messages.find((msg) => msg.senderId === user.id) && lastSeenChat.length > 0 && (
+                <div className="text-xs text-zinc-400 mt-1 flex justify-end">Last seen {lastSeenChat}</div>
+              )}
+
               <div className={`flex w-full justify-start mb-4 px-4`}>
                 <div className={`flex max-w-[80%] md:max-w-[70%] flex-row items-end gap-2`}>
                   {isTyping && (
@@ -326,7 +381,7 @@ const Chat = () => {
 
             {/* Message Input */}
             <form onSubmit={handleSubmit} className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md p-4 sm:p-5 border-t dark:border-zinc-800 flex items-center gap-4 sticky bottom-0 z-10">
-              <FileUploadDropzone />
+              <FileUploadDropzone value={files} onValueChange={setFiles} />
               <input
                 type="text"
                 className="flex-1 bg-zinc-100 dark:bg-zinc-800/50 border-transparent border focus:border-blue-500 rounded-full px-5 py-3.5 focus:ring-4 focus:ring-blue-500/10 dark:text-white outline-none transition-all duration-300 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
@@ -336,7 +391,6 @@ const Chat = () => {
               />
               <button
                 type="submit"
-                disabled={!input.trim()}
                 className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:saturate-0 disabled:cursor-not-allowed text-white rounded-full p-3.5 flex items-center justify-center transition-all shadow-lg shadow-blue-500/30 transform hover:scale-105 active:scale-95"
               >
                 <Send size={20} className="mr-0.5 mt-0.5" />
