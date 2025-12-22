@@ -58,13 +58,13 @@ io.on("connection", (socket) => {
       const savedMessage = await prisma.messages.create({
         data: {
           content: message,
-          file: files[0],
+          file: Array.isArray(files) ? files : [],
           senderId: socket.user.id,
           roomId: roomId,
         },
       });
       io.to(roomId).emit("receive_message", {
-        id: savedMessage.id, 
+        id: savedMessage.id,
         content: savedMessage.content,
         senderId: socket.user.id,
         file: savedMessage.file,
@@ -91,26 +91,26 @@ io.on("connection", (socket) => {
 
   socket.on("lastseen", async ({ userId, roomId }) => {
     try {
-    const updatedRoom = await prisma.rooms.upsert({
-      where: {
-        roomId_userId: {
+      const updatedRoom = await prisma.rooms.upsert({
+        where: {
+          roomId_userId: {
+            roomId: roomId,
+            userId: userId,
+          },
+        },
+        update: {
+          lastSeen: new Date(),
+        },
+        create: {
           roomId: roomId,
           userId: userId,
+          lastSeen: new Date(),
         },
-      },
-      update: {
-        lastSeen: new Date(),
-      },
-      create: {
-        roomId: roomId,
-        userId: userId,
-        lastSeen: new Date(),
-      },
-    });
+      });
 
-  } catch (error) {
-    console.error("Failed to update last seen:", error);
-  }
+    } catch (error) {
+      console.error("Failed to update last seen:", error);
+    }
   });
 
   socket.on("disconnect", () => {

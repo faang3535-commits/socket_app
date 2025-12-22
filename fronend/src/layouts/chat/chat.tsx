@@ -22,7 +22,7 @@ const Chat = () => {
   const token = session?.access_token;
   const typingTimeoutRef = useRef<any>(null);
   const prevSelectedUser = useRef<any>(selectedUser);
-  const [files, setFiles] = useState<File[] | null>([]);
+  const [files, setFiles] = useState<File[]>([]); 
 
   const user = {
     id: rawUser.id,
@@ -53,7 +53,25 @@ const Chat = () => {
     try {
       const roomId = [user.id, userToChatWith.id].sort().join('_');
       const historyData = await apiService.get(`/users/messages/${roomId}`);
-      setMessages(historyData.messages);
+      const enrichedMessages = await Promise.all(
+        historyData.messages.map(async (msg: any) => {
+          if (msg.file && msg.file.length > 0) {
+            const signedFiles = await Promise.all(
+              msg.file.map(async (path: string) => {
+                const { data } = await supabase
+                  .storage
+                  .from('Dev')
+                  .createSignedUrl(path, 86400);
+                return data?.signedUrl;
+              })
+            );
+            return { ...msg, signedFiles };
+          }
+          return msg;
+        })
+      );
+
+      setMessages(enrichedMessages);
 
       const lastSeenData = historyData.lastSeen.find((u: any) => u.userId == user.id)?.lastSeen;
       if (lastSeenData) {
@@ -89,7 +107,18 @@ const Chat = () => {
       console.error("Socket connection error:", err.message);
     });
 
-    newSocket.on('receive_message', (msg: any) => {
+    newSocket.on('receive_message', async (msg: any) => {
+      if (msg.file && msg.file.length > 0) {
+        msg.signedFiles = await Promise.all(
+          msg.file.map(async (path: string) => {
+            const { data } = await supabase
+              .storage
+              .from('Dev')
+              .createSignedUrl(path, 86400);
+            return data?.signedUrl;
+          })
+        );
+      }
       setMessages((prev) => [...prev, msg]);
     });
 
@@ -127,21 +156,24 @@ const Chat = () => {
   };
 
   useEffect(() => {
-    if (!socket) return;
+  if (!socket) return;
 
-    socket.on('typing', ({ from }: { from: string }) => {
-      if (from !== user.id) setIsTyping(true);
-    });
+  const onTyping = ({ from }: { from: string }) => {
+    if (from !== user.id) setIsTyping(true);
+  };
 
-    socket.on('stop_typing', ({ from }: { from: string }) => {
-      if (from !== user.id) setIsTyping(false);
-    });
+  const onStopTyping = ({ from }: { from: string }) => {
+    if (from !== user.id) setIsTyping(false);
+  };
 
-    return () => {
-      socket.off('typing');
-      socket.off('stop_typing');
-    };
-  }, [socket, selectedUser]);
+  socket.on('typing', onTyping);
+  socket.on('stop_typing', onStopTyping);
+
+  return () => {
+    socket.off('typing', onTyping); 
+    socket.off('stop_typing', onStopTyping); 
+  };
+}, [socket]); 
 
   // Update last seen
   useEffect(() => {
@@ -165,21 +197,8 @@ const Chat = () => {
         formData.append('file', file);
 
         const response = await apiService.post('/upload/upload', formData);
-
-        if (response?.path) {
-          const filePath = response.path;
-
-          const { data, error } = await supabase
-            .storage
-            .from('Dev')
-            .createSignedUrl(filePath, 3600);
-
-          if (error) {
-            console.error('Signing Error:', error.message);
-          } else if (data?.signedUrl) {
-            fileUrls.push(data.signedUrl);
-          }
-        }
+        const path = response?.path;
+        fileUrls.push(path);
       }
     }
     const roomId = [user.id, selectedUser.id].sort().join('_');
@@ -196,44 +215,6 @@ const Chat = () => {
     setInput('');
     setFiles([]);
   };
-
-  // Refresh signed URLs every hour
-  // const refreshFileUrls = async () => {
-  //   if (messages.length === 0) return;
-
-  //   const updatedMessages = await Promise.all(messages.map(async (msg) => {
-  //     if (msg.files && msg.files.length > 0) {
-  //       const refreshedUrls: string[] = [];
-  //       for (const url of msg.files) {
-  //         try {
-  //           const path = url.split('?')[0].replace(`${supabase.storageUrl}/storage/v1/object/public/Dev/`, '');
-  //           const { data, error } = await supabase
-  //             .storage
-  //             .from('Dev')
-  //             .createSignedUrl(path, 3600);
-
-  //           if (!error && data?.signedUrl) {
-  //             refreshedUrls.push(data.signedUrl);
-  //           }
-  //         } catch (err) {
-  //           console.error('Error refreshing signed URL:', err);
-  //         }
-  //       }
-  //       return { ...msg, files: refreshedUrls };
-  //     }
-  //     return msg;
-  //   }));
-
-  //   setMessages(updatedMessages);
-  // };
-
-  // useEffect(() => {
-  //   const interval = setInterval(() => {
-  //     refreshFileUrls();
-  //   }, 60 * 60 * 1000); // 1 hour
-
-  //   return () => clearInterval(interval);
-  // }, [messages]);
 
   return (
     <div className="flex h-screen bg-zinc-100 dark:bg-zinc-900 overflow-hidden">
@@ -329,13 +310,16 @@ const Chat = () => {
                         )}
 
                         <div className="flex flex-col gap-2">
-                          {msg.file && msg.file.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
+                          {msg.signedFiles && msg.signedFiles.length > 0 && (
+                            <div className="flex gap-2 mt-1">
+                              {msg.signedFiles.map((url: string, i: number) => (
                                 <img
-                                  src={msg.file}
+                                  key={i}
+                                  src={url}
                                   alt="attachment"
-                                  className="max-w-full rounded-md object-cover max-h-60"
+                                  className="max-h-60 rounded-md object-cover"
                                 />
+                              ))}
                             </div>
                           )}
                           <div className="flex flex-wrap items-end justify-end gap-x-4">
