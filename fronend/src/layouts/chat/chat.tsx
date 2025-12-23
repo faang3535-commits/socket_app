@@ -22,7 +22,7 @@ const Chat = () => {
   const token = session?.access_token;
   const typingTimeoutRef = useRef<any>(null);
   const prevSelectedUser = useRef<any>(selectedUser);
-  const [files, setFiles] = useState<File[]>([]); 
+  const [files, setFiles] = useState<File[] | null>(null);
 
   const user = {
     id: rawUser.id,
@@ -156,24 +156,24 @@ const Chat = () => {
   };
 
   useEffect(() => {
-  if (!socket) return;
+    if (!socket) return;
 
-  const onTyping = ({ from }: { from: string }) => {
-    if (from !== user.id) setIsTyping(true);
-  };
+    const onTyping = ({ from }: { from: string }) => {
+      if (from !== user.id) setIsTyping(true);
+    };
 
-  const onStopTyping = ({ from }: { from: string }) => {
-    if (from !== user.id) setIsTyping(false);
-  };
+    const onStopTyping = ({ from }: { from: string }) => {
+      if (from !== user.id) setIsTyping(false);
+    };
 
-  socket.on('typing', onTyping);
-  socket.on('stop_typing', onStopTyping);
+    socket.on('typing', onTyping);
+    socket.on('stop_typing', onStopTyping);
 
-  return () => {
-    socket.off('typing', onTyping); 
-    socket.off('stop_typing', onStopTyping); 
-  };
-}, [socket]); 
+    return () => {
+      socket.off('typing', onTyping);
+      socket.off('stop_typing', onStopTyping);
+    };
+  }, [socket]);
 
   // Update last seen
   useEffect(() => {
@@ -188,14 +188,13 @@ const Chat = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!input.trim() && !files) || !socket || !selectedUser) return;
+    if ((!input.trim() && !files?.length) || !socket || !selectedUser) return;
     let fileUrls: string[] = [];
 
     if (files && files.length > 0) {
       for (const file of files) {
         const formData = new FormData();
         formData.append('file', file);
-
         const response = await apiService.post('/upload/upload', formData);
         const path = response?.path;
         fileUrls.push(path);
@@ -288,44 +287,71 @@ const Chat = () => {
 
                 return (
                   <div key={index} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'} mb-1 px-4`}>
-                    <div className={`flex max-w-[85%] md:max-w-[70%] items-end gap-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                      {!isMe && (
-                        <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 shrink-0 flex items-center justify-center text-xs font-bold text-zinc-400 mb-1">
-                          {selectedUser?.username?.charAt(0) || 'U'}
-                        </div>
-                      )}
-                      <div className={`relative px-3 py-1.5 text-sm shadow-sm min-w-[60px] ${isMe
-                        ? 'bg-blue-600 text-white rounded-md rounded-tr-none'
-                        : 'bg-zinc-800 text-zinc-100 border border-zinc-700/50 rounded-md rounded-tl-none'}`}>
-                        <div className={`absolute top-0 w-2 h-2 ${isMe ? '-right-1 text-blue-600' : '-left-1 text-zinc-800'}`}>
-                          <svg viewBox="0 0 8 8" className={isMe ? '' : 'transform scale-x-[-2]'} fill="currentColor">
-                            <path d="M0 0 v8 q4 0 8 -8 Z" fill="currentColor" stroke="currentColor" strokeWidth="0.5" />
-                          </svg>
-                        </div>
-
+                    <div className={`flex w-full px-4 py-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`flex max-w-[85%] md:max-w-[70%] items-end gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                         {!isMe && (
-                          <div className="text-[11px] font-bold text-blue-400 mb-0.5 leading-none">
-                            {selectedUser?.username}
+                          <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 shrink-0 flex items-center justify-center text-xs font-bold text-zinc-400 mb-1">
+                            {selectedUser?.username?.charAt(0).toUpperCase() || 'U'}
                           </div>
                         )}
 
-                        <div className="flex flex-col gap-2">
-                          {msg.signedFiles && msg.signedFiles.length > 0 && (
-                            <div className="flex gap-2 mt-1">
-                              {msg.signedFiles.map((url: string, i: number) => (
-                                <img
-                                  key={i}
-                                  src={url}
-                                  alt="attachment"
-                                  className="max-h-60 rounded-md object-cover"
-                                />
-                              ))}
+                        <div className={`relative px-3 py-2 shadow-md rounded-lg ${isMe
+                            ? 'bg-blue-600/50 text-white rounded-tr-none'
+                            : 'bg-zinc-800 text-zinc-100 border border-zinc-700/50 rounded-tl-none'
+                          }`}>
+                          <div className={`absolute top-0 ${isMe ? '-right-1.5' : '-left-[7px]'}`}>
+                            <div
+                              className={`w-1.5 h-2 ${isMe ? 'bg-blue-600/50' : 'bg-zinc-800'}`}
+                              style={{
+                                clipPath: isMe
+                                  ? 'polygon(0 0, 100% 0, 0 100%)'
+                                  : 'polygon(100% 0, 100% 100%, 0 0)'
+                              }}
+                            />
+                            {!isMe && (
+                              <div
+                                className="absolute top-0 left-0 w-2 h-3 border-l border-t border-zinc-700/50"
+                                style={{
+                                  clipPath: 'polygon(100% 0, 100% 100%, 0 0)'
+                                }}
+                              />
+                            )}
+                          </div>
+
+                          {/* Username for received messages */}
+                          {!isMe && (
+                            <div className="text-[11px] font-semibold text-blue-400 mb-1">
+                              {selectedUser?.username}
                             </div>
                           )}
-                          <div className="flex flex-wrap items-end justify-end gap-x-4">
-                            <p className="whitespace-pre-wrap leading-relaxed flex-1 text-left">{msg.message || msg.content}</p>
-                            <div className={`text-[10px] h-4 flex items-center opacity-70 ${isMe ? 'text-blue-100' : 'text-zinc-400'}`}>
-                              {msg.time || new Date(msg.createdAt || msg.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+
+                          {/* Message content */}
+                          <div className="flex flex-col gap-1">
+                            {/* Images if any */}
+                            {msg.signedFiles && msg.signedFiles.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mb-1">
+                                {msg.signedFiles.map((url: string, i: number) => (
+                                  <img
+                                    key={i}
+                                    src={url}
+                                    alt="attachment"
+                                    className="max-h-60 max-w-full rounded-md object-cover"
+                                  />
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Message text and timestamp */}
+                            <div className="flex items-end gap-2">
+                              <p className="whitespace-pre-wrap text-[15px] leading-[1.4] flex-1">
+                                {msg.message || msg.content}
+                              </p>
+                              <div className={`text-[11px] shrink-0 ${isMe ? 'text-blue-100/70' : 'text-zinc-500'}`}>
+                                {msg.time || new Date(msg.createdAt || msg.sentAt).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </div>
                             </div>
                           </div>
                         </div>
