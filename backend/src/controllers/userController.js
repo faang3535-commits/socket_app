@@ -25,17 +25,34 @@ const userController = {
 
   getalluser: async (req, res) => {
     try {
-      const users = await prisma.users.findMany({
-        where: {
-          id: { not: req.user.id },
-        },
-        select: {
-          id: true,
-          username: true,
-        },
-      });
+      const { search, limit = 20, skip = 0 } = req.query;
+      const whereClause = {
+        id: { not: req.user.id },
+      }
+      if (search) {
+        whereClause.username = {
+          contains: search,
+          mode: 'insensitive',
+        }
+      }
 
-      res.json(users);
+      const [users, totleCount] = await Promise.all([
+        prisma.users.findMany({
+          where: whereClause,
+          select: {
+            id: true,
+            username: true,
+          },
+          orderBy: { username: "asc" },
+          take: parseInt(limit),
+          skip: parseInt(skip),
+        }),
+        prisma.users.count({
+          where: whereClause,
+        })
+      ]);
+
+      res.json({ users, pagination: { total: totleCount, limit: parseInt(limit), skip: parseInt(skip), hasmore: parseInt(skip) + parseInt(limit) < totleCount } });
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Server Error" });
@@ -45,7 +62,8 @@ const userController = {
   getMessages: async (req, res) => {
     try {
       const { roomId } = req.params;
-      const messages = await prisma.messages.findMany({
+      const { cursor, limit = 50 } = req.query;
+      const queryOptioons = {
         where: { roomId },
         include: {
           sender: {
@@ -55,18 +73,30 @@ const userController = {
             },
           },
         },
-        orderBy: { sentAt: "asc" },
-      });
-      const lastSeen = await prisma.rooms.findMany({
-        where: {
-          roomId: roomId,
-        },
-        select: {
-          userId: true,
-          lastSeen: true,
-        },
-      });
-      res.json({ messages, lastSeen });
+        orderBy: { sentAt: "desc" },
+        take: parseInt(limit),
+      };
+
+      if (cursor) {
+        queryOptioons.cursor = {
+          id: cursor,
+        };
+        queryOptioons.skip = 1;
+      }
+      const [messages, lastSeen] = await Promise.all([
+        prisma.messages.findMany(queryOptioons),
+        prisma.rooms.findMany({
+          where: {
+            roomId: roomId,
+          },
+          select: {
+            userId: true,
+            lastSeen: true,
+          },
+        })
+      ]);
+      const orderedMessages = messages.reverse();
+      res.json({ messages: orderedMessages, lastSeen, nextCursor: messages.length === parseInt(limit) ? messages[messages.length - 1]?.id : null });
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Server Error" });

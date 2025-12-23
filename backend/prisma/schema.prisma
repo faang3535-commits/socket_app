@@ -35,10 +35,12 @@ model messages {
   content  String
   file     String[] @map("file") 
   senderId String   @db.Uuid @map("sender_id")
-  roomId   String   @map("room_id")  // This can stay as String
+  roomId   String   @map("room_id") 
   sentAt   DateTime @default(now()) @map("sent_at")
 
   sender   users    @relation(fields: [senderId], references: [id])
 
+  @@index([roomId, sentAt]) 
+  @@index([roomId]) 
   @@map("messages")
 }

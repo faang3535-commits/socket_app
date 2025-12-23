@@ -1,7 +1,14 @@
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const s3 = require("../config/s3");
+const { randomUUID } = require("crypto");
+const path = require("path");
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'video/mp4', 'video/webm', 'audio/mpeg', 'audio/wav'];
 
 const fileUpload = async (req, res) => {
+   console.log("file*******", req.file);
    try {
       const { file } = req;
       if (!file) {
@@ -9,7 +16,22 @@ const fileUpload = async (req, res) => {
          return res.status(400).json({ message: "No file uploaded" });
       }
 
-      const fileKey = `${Date.now()}-${file.originalname}`;
+      if (file.size > MAX_FILE_SIZE) {
+         console.log("File size exceeds limit");
+         return res.status(400).json({ message: "File size exceeds limit" });
+      }
+
+      if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+         console.log("File type not allowed");
+         return res.status(400).json({ message: "File type not allowed" });
+      }
+
+      const fileExtension = path.extname(file.originalname);
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const randomId = randomUUID();
+      const fileKey = `uploads/${year}/${month}/${randomId}${fileExtension}`;
 
       const command = new PutObjectCommand({
          Bucket: process.env.SUPABASE_BUCKET,

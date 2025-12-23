@@ -23,6 +23,10 @@ const Chat = () => {
   const typingTimeoutRef = useRef<any>(null);
   const prevSelectedUser = useRef<any>(selectedUser);
   const [files, setFiles] = useState<File[] | null>(null);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const loadingRef = useRef(0);
 
   const user = {
     id: rawUser.id,
@@ -38,7 +42,9 @@ const Chat = () => {
     const fetchUsers = async () => {
       try {
         const data = await apiService.get('/users/allusers');
-        setUsers(data.filter((u: any) => u.id !== user.id));
+        console.log(data.users);
+        // setUsers(data.users.filter((u: any) => u.id !== user.id));
+        setUsers(data.users);
       } catch (error) {
         console.error('Error fetching users:', error);
       }
@@ -50,26 +56,56 @@ const Chat = () => {
   const loadChatAndJoinRoom = async (userToChatWith: any) => {
     setSelectedUser(userToChatWith);
     setMessages([]);
+    setIsLoadingMessages(true);
+
+    loadingRef.current += 1;
+    const currentRequest = loadingRef.current;
+
     try {
       const roomId = [user.id, userToChatWith.id].sort().join('_');
       const historyData = await apiService.get(`/users/messages/${roomId}`);
-      const enrichedMessages = await Promise.all(
-        historyData.messages.map(async (msg: any) => {
-          if (msg.file && msg.file.length > 0) {
-            const signedFiles = await Promise.all(
-              msg.file.map(async (path: string) => {
-                const { data } = await supabase
-                  .storage
-                  .from('Dev')
-                  .createSignedUrl(path, 86400);
-                return data?.signedUrl;
-              })
-            );
-            return { ...msg, signedFiles };
+
+      if (currentRequest !== loadingRef.current) {
+        return;
+      }
+
+      const allFilePaths: string[] = [];
+      historyData.messages.forEach((msg: any) => {
+        if (msg.file && msg.file.length > 0) {
+          allFilePaths.push(...msg.file);
+        }
+      });
+
+      const signedUrlMap: Record<string, string> = {};
+      if (allFilePaths.length > 0) {
+        const signedUrlResults = await Promise.all(
+          allFilePaths.map(async (path: string) => {
+            const { data } = await supabase
+              .storage
+              .from('Dev')
+              .createSignedUrl(path, 86400);
+            return { path, url: data?.signedUrl };
+          })
+        );
+
+        signedUrlResults.forEach(result => {
+          if (result.url) {
+            signedUrlMap[result.path] = result.url;
           }
-          return msg;
-        })
-      );
+        });
+      }
+
+      if (currentRequest !== loadingRef.current) {
+        return;
+      }
+
+      const enrichedMessages = historyData.messages.map((msg: any) => {
+        if (msg.file && msg.file.length > 0) {
+          const signedFiles = msg.file.map((path: string) => signedUrlMap[path]);
+          return { ...msg, signedFiles };
+        }
+        return msg;
+      });
 
       setMessages(enrichedMessages);
 
@@ -90,10 +126,13 @@ const Chat = () => {
         else setLastSeenChat(`${diffInWeeks} weeks ago`);
       }
     } catch (error) {
-      console.error('Error fetching chat history:', error);
-      setMessages([]);
+      console.error("Failed to update last seen:", error);
+    } finally {
+      if (currentRequest === loadingRef.current) {
+        setIsLoadingMessages(false);
+      }
     }
-  };
+  }
 
   // Socket connection
   useEffect(() => {
@@ -173,7 +212,7 @@ const Chat = () => {
       socket.off('typing', onTyping);
       socket.off('stop_typing', onStopTyping);
     };
-  }, [socket]);
+  }, [socket, user.id]);
 
   // Update last seen
   useEffect(() => {
@@ -189,30 +228,55 @@ const Chat = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!input.trim() && !files?.length) || !socket || !selectedUser) return;
+
+    setIsUploading(true);
     let fileUrls: string[] = [];
 
-    if (files && files.length > 0) {
-      for (const file of files) {
-        const formData = new FormData();
-        formData.append('file', file);
-        const response = await apiService.post('/upload/upload', formData);
-        const path = response?.path;
-        fileUrls.push(path);
+    try {
+      if (files && files.length > 0) {
+        const uploadPromises = files.map(async (file) => {
+          try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const response = await apiService.post('/upload/upload', formData);
+            return response?.path;
+          } catch (error) {
+            console.error(`Failed to upload ${file.name}:`, error);
+            return null;
+          }
+        });
+
+        const uploadResults = await Promise.all(uploadPromises);
+
+        fileUrls = uploadResults.filter((path): path is string => path !== null);
+
+        if (fileUrls.length < files.length) {
+          const failedCount = files.length - fileUrls.length;
+          alert(`Warning: ${failedCount} file(s) failed to upload. Sending message with ${fileUrls.length} file(s).`);
+        }
       }
+
+      if (input.trim() || fileUrls.length > 0) {
+        const roomId = [user.id, selectedUser.id].sort().join('_');
+        const messageData = {
+          roomId,
+          message: input,
+          files: fileUrls,
+          senderId: user.id,
+          receiverId: selectedUser.id,
+          username: user.username,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+        socket.emit('send_message', messageData);
+        setInput('');
+        setFiles([]);
+      }
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      alert('Failed to send message. Please try again.');
+    } finally {
+      setIsUploading(false);
     }
-    const roomId = [user.id, selectedUser.id].sort().join('_');
-    const messageData = {
-      roomId,
-      message: input,
-      files: fileUrls,
-      senderId: user.id,
-      receiverId: selectedUser.id,
-      username: user.username,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-    socket.emit('send_message', messageData);
-    setInput('');
-    setFiles([]);
   };
 
   return (
@@ -296,8 +360,8 @@ const Chat = () => {
                         )}
 
                         <div className={`relative px-3 py-2 shadow-md rounded-lg ${isMe
-                            ? 'bg-blue-600/50 text-white rounded-tr-none'
-                            : 'bg-zinc-800 text-zinc-100 border border-zinc-700/50 rounded-tl-none'
+                          ? 'bg-blue-600/50 text-white rounded-tr-none'
+                          : 'bg-zinc-800 text-zinc-100 border border-zinc-700/50 rounded-tl-none'
                           }`}>
                           <div className={`absolute top-0 ${isMe ? '-right-1.5' : '-left-[7px]'}`}>
                             <div
@@ -394,9 +458,14 @@ const Chat = () => {
               />
               <button
                 type="submit"
+                disabled={isUploading || (!input.trim() && !files?.length)}
                 className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:saturate-0 disabled:cursor-not-allowed text-white rounded-full p-3.5 flex items-center justify-center transition-all shadow-lg shadow-blue-500/30 transform hover:scale-105 active:scale-95"
               >
-                <Send size={20} className="mr-0.5 mt-0.5" />
+                {isUploading ? (
+                  <span className="animate-spin">⏳</span>
+                ) : (
+                  <Send size={20} className="mr-0.5 mt-0.5" />
+                )}
               </button>
             </form>
           </>
@@ -413,7 +482,6 @@ const Chat = () => {
         )}
       </main>
     </div>
-  );
-};
-
+  )
+}
 export default Chat;
