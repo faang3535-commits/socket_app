@@ -2,10 +2,12 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { io } from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../../services/axios';
-import { ArrowLeft, Cross, Pencil, Send } from 'lucide-react';
+import { Cross, Pencil, Send } from 'lucide-react';
 import FileUploadDropzone from '@/components/fileUploader';
 import { supabase } from '@/lib/supabase';
-import ContextMenu from '@/components/contexmenu';
+import Sidebar from '@/components/chatcomponents/sidebar';
+import ChatHeader from '@/components/chatcomponents/chatheader';
+import MessagesList from '@/components/chatcomponents/chatlist';
 
 const Chat = () => {
   const [messages, setMessages] = useState<any[]>([]);
@@ -14,8 +16,6 @@ const Chat = () => {
   const [users, setUsers] = useState<any[]>([]);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isTyping, setIsTyping] = useState(false);
-  const [lastSeenChat, setLastSeenChat] = useState<any>([]);
-  const messagesEndRef = useRef<null | HTMLDivElement>(null);
   const navigate = useNavigate();
   const sessionString = localStorage.getItem('sb-bivjfuifyqourtgzxrkj-auth-token');
   const session = sessionString ? JSON.parse(sessionString) : null;
@@ -24,10 +24,9 @@ const Chat = () => {
   const typingTimeoutRef = useRef<any>(null);
   const prevSelectedUser = useRef<any>(selectedUser);
   const [files, setFiles] = useState<File[] | null>(null);
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  // const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [editOpen, setEditOpen] = useState(false)
-  const [deleteOpen, setDeleteOpen] = useState(false)
   const [editMessage, setEditMessage] = useState<any>(null)
 
 
@@ -49,7 +48,6 @@ const Chat = () => {
     const fetchUsers = async () => {
       try {
         const data = await apiService.get('/users/allusers');
-        // setUsers(data.users.filter((u: any) => u.id !== user.id));
         setUsers(data.users);
       } catch (error) {
         console.error('Error fetching users:', error);
@@ -59,86 +57,9 @@ const Chat = () => {
     fetchUsers();
   }, [navigate, user.id]);
 
-  const loadChatAndJoinRoom = async (userToChatWith: any) => {
+  const joinRoom = async (userToChatWith: any) => {
     setSelectedUser(userToChatWith);
     setMessages([]);
-    setIsLoadingMessages(true);
-
-    loadingRef.current += 1;
-    const currentRequest = loadingRef.current;
-
-    try {
-      const roomId = [user.id, userToChatWith.id].sort().join('_');
-      socket.emit('lastseen', { userId: userToChatWith.id, roomId });
-      const historyData = await apiService.get(`/users/messages/${roomId}`);
-
-      if (currentRequest !== loadingRef.current) {
-        return;
-      }
-
-      const allFilePaths: string[] = [];
-      historyData.messages.forEach((msg: any) => {
-        if (msg.file && msg.file.length > 0) {
-          allFilePaths.push(...msg.file);
-        }
-      });
-
-      const signedUrlMap: Record<string, string> = {};
-      if (allFilePaths.length > 0) {
-        const signedUrlResults = await Promise.all(
-          allFilePaths.map(async (path: string) => {
-            const { data } = await supabase
-              .storage
-              .from('Dev')
-              .createSignedUrl(path, 86400);
-            return { path, url: data?.signedUrl };
-          })
-        );
-
-        signedUrlResults.forEach(result => {
-          if (result.url) {
-            signedUrlMap[result.path] = result.url;
-          }
-        });
-      }
-
-      if (currentRequest !== loadingRef.current) {
-        return;
-      }
-
-      const enrichedMessages = historyData.messages.map((msg: any) => {
-        if (msg.file && msg.file.length > 0) {
-          const signedFiles = msg.file.map((path: string) => signedUrlMap[path]);
-          return { ...msg, signedFiles };
-        }
-        return msg;
-      });
-
-      setMessages(enrichedMessages);
-
-      const lastSeenData = historyData.lastSeen.find((u: any) => u.userId == user.id)?.lastSeen;
-      if (lastSeenData) {
-        const seen = new Date(lastSeenData).getTime();
-        const cur = new Date().getTime();
-        const diffInMs = Math.abs(cur - seen);
-        const diffInMin = Math.floor(diffInMs / (1000 * 60));
-        const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
-        const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-        const diffInWeeks = Math.floor(diffInMs / (1000 * 60 * 60 * 24 * 7));
-
-        if (diffInMin < 1) setLastSeenChat('Just now');
-        else if (diffInHours < 1) setLastSeenChat(`${diffInMin} min ago`);
-        else if (diffInDays < 1) setLastSeenChat(`${diffInHours} hours ago`);
-        else if (diffInWeeks < 1) setLastSeenChat(`${diffInDays} days ago`);
-        else setLastSeenChat(`${diffInWeeks} weeks ago`);
-      }
-    } catch (error) {
-      console.error("Failed to update last seen:", error);
-    } finally {
-      if (currentRequest === loadingRef.current) {
-        setIsLoadingMessages(false);
-      }
-    }
   }
 
   // Socket connection
@@ -183,11 +104,6 @@ const Chat = () => {
     }
   }, [socket, selectedUser, user.id]);
 
-  // Scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
   // Typing indicator
   const handleTyping = () => {
     if (!socket || !user.id || !selectedUser) return;
@@ -228,7 +144,6 @@ const Chat = () => {
       socket.emit('lastseen', { userId: prevSelectedUser.current.id, roomId });
     }
     prevSelectedUser.current = selectedUser;
-    setLastSeenChat('');
   }, [selectedUser]);
 
   // Upload data
@@ -310,170 +225,14 @@ const Chat = () => {
   return (
     <div className="flex h-screen bg-zinc-100 dark:bg-zinc-900 overflow-hidden">
       {/* Sidebar / Contacts */}
-      <aside className="w-80 bg-white dark:bg-zinc-900 border-r dark:border-zinc-700/50 flex flex-col">
-        <div className="p-4 sm:p-5 border-b dark:border-zinc-800 flex items-center gap-4">
-          <button
-            onClick={() => navigate('/')}
-            className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400 transition-colors"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <h1 className="font-bold text-xl text-zinc-900 dark:text-white tracking-tight">Messages</h1>
-        </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          {users.map((u) => (
-            <div
-              key={u.id}
-              onClick={() => loadChatAndJoinRoom(u)}
-              className={`flex items-center space-x-3 p-3 rounded-xl cursor-pointer transition-all duration-200 
-                ${selectedUser?.id === u.id
-                  ? 'bg-blue-900 text-white shadow-md shadow-blue-500/20'
-                  : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300'}`}
-            >
-              <div className="relative">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm uppercase transition-colors
-                  ${selectedUser?.id === u.id ? 'bg-white/20 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'}`}>
-                  {u.username.charAt(0)}
-                </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className={`font-semibold block truncate ${selectedUser?.id === u.id ? 'text-white' : 'text-zinc-900 dark:text-zinc-100'}`}>
-                  {u.username}
-                </span>
-                <p className={`text-xs truncate ${selectedUser?.id === u.id ? 'text-blue-100' : 'text-zinc-400'}`}>
-                  Click to chat
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </aside>
-
+      <Sidebar users={users} selectedUser={selectedUser} joinRoom={joinRoom} />
       {/* Main Chat Area */}
       <main className="flex-1 flex flex-col bg-zinc-50/50 dark:bg-zinc-950/50 backdrop-blur-3xl">
         {selectedUser ? (
           <>
-            {/* Chat Header */}
-            <header className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md shadow-sm p-4 border-b dark:border-zinc-800 flex items-center gap-3 z-10 sticky top-0">
-              <div className="w-10 h-10 rounded-full bg-linear-to-tr from-blue-600 to-indigo-800 flex items-center justify-center font-bold uppercase text-white shadow-md">
-                {selectedUser.username.charAt(0)}
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-zinc-900 dark:text-white leading-tight">{selectedUser.username}</h2>
-              </div>
-            </header>
+            <ChatHeader selectedUser={selectedUser} />
 
-            {/* Messages List */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6 scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-600">
-              {messages.map((msg, index) => {
-                const isMe = msg.senderId === user.id;
-                const isSystem = msg.type === 'system';
-
-                if (isSystem) {
-                  return (
-                    <div key={index} className="flex justify-center my-4">
-                      <span className="text-xs text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-3 py-1 rounded-">{msg.content}</span>
-                    </div>
-                  )
-                }
-
-                return (
-                  <div key={index} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'} mb-1 px-4`}>
-                    <div className={`flex w-full px-4 py-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`flex max-w-[85%] md:max-w-[70%] items-end gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                        {!isMe && (
-                          <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 shrink-0 flex items-center justify-center text-xs font-bold text-zinc-400 mb-1">
-                            {selectedUser?.username?.charAt(0).toUpperCase() || 'U'}
-                          </div>
-                        )}
-                        <ContextMenu onEdit={() => { setEditMessage({ ...msg }); setEditOpen(true) }} onDelete={() => { setDeleteOpen(true) }}>
-                          <div className={`relative px-3 py-2 shadow-md rounded-lg ${isMe
-                            ? 'bg-blue-600/50 text-white rounded-tr-none'
-                            : 'bg-zinc-800 text-zinc-100 border border-zinc-700/50 rounded-tl-none'
-                            }`}>
-                            <div className={`absolute top-0 ${isMe ? '-right-1.5' : '-left-[7px]'}`}>
-                              <div
-                                className={`w-1.5 h-2 ${isMe ? 'bg-blue-600/50' : 'bg-zinc-800'}`}
-                                style={{
-                                  clipPath: isMe
-                                    ? 'polygon(0 0, 100% 0, 0 100%)'
-                                    : 'polygon(100% 0, 100% 100%, 0 0)'
-                                }}
-                              />
-                              {!isMe && (
-                                <div
-                                  className="absolute top-0 left-0 w-2 h-3 border-l border-t border-zinc-700/50"
-                                  style={{
-                                    clipPath: 'polygon(100% 0, 100% 100%, 0 0)'
-                                  }}
-                                />
-                              )}
-                            </div>
-
-                            {/* Username for received messages */}
-                            {!isMe && (
-                              <div className="text-[11px] font-semibold text-blue-400 mb-1">
-                                {selectedUser?.username}
-                              </div>
-                            )}
-
-                            {/* Message content */}
-                            <div className="flex flex-col gap-1">
-                              {/* Images if any */}
-                              {msg.signedFiles && msg.signedFiles.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mb-1">
-                                  {msg.signedFiles.map((url: string, i: number) => (
-                                    <img
-                                      key={i}
-                                      src={url}
-                                      alt="attachment"
-                                      className="max-h-60 max-w-full rounded-md object-cover"
-                                    />
-                                  ))}
-                                </div>
-                              )}
-
-                              {/* Message text and timestamp */}
-                              <div className="flex items-end gap-2">
-                                <p className="whitespace-pre-wrap text-[15px] leading-[1.4] flex-1">
-                                  {msg.content}
-                                </p>
-                                <div className={`text-[11px] shrink-0 ${isMe ? 'text-blue-100/70' : 'text-zinc-500'}`}>
-                                  {msg.time || new Date(msg.createdAt || msg.sentAt).toLocaleTimeString([], {
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </ContextMenu>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-
-              {messages.find((msg) => msg.senderId === user.id) && lastSeenChat.length > 0 && (
-                <div className="text-xs text-zinc-400 mt-1 flex justify-end">Last seen {lastSeenChat}</div>
-              )}
-
-              <div className={`flex w-full justify-start mb-4 px-4`}>
-                <div className={`flex max-w-[80%] md:max-w-[70%] flex-row items-end gap-2`}>
-                  {isTyping && (
-                    <>
-                      <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 shrink-0 flex items-center justify-center text-xs font-bold text-zinc-400">
-                        {selectedUser?.username?.charAt(0) || 'U'}
-                      </div>
-                      <div className='bg-zinc-800 text-zinc-100 border border-zinc-700/50 rounded-sm rounded-bl-none px-4 py-1.5 text-sm shadow-md'>
-                        <p className="text-xs text-zinc-400 mt-1 dot-animation">Typing<span>.</span><span>.</span><span>.</span><span>.</span></p>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
+            <MessagesList selectedUser={selectedUser} user={user} />
 
             {/* Message Input */}
             {!editOpen ? (
