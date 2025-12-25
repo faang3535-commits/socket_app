@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { io } from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../../services/axios';
-import { ArrowLeft, Send } from 'lucide-react';
+import { ArrowLeft, Cross, Pencil, Send } from 'lucide-react';
 import FileUploadDropzone from '@/components/fileUploader';
 import { supabase } from '@/lib/supabase';
+import ContextMenu from '@/components/contexmenu';
 
 const Chat = () => {
   const [messages, setMessages] = useState<any[]>([]);
@@ -25,15 +26,21 @@ const Chat = () => {
   const [files, setFiles] = useState<File[] | null>(null);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [editOpen, setEditOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [editMessage, setEditMessage] = useState<any>(null)
+
 
   const loadingRef = useRef(0);
 
-  const user = {
-    id: rawUser.id,
-    email: rawUser.email,
-    username: rawUser.user_metadata?.username || rawUser.email?.split('@')[0] || 'Guest',
-    ...rawUser
-  };
+  const user = useMemo(() => {
+    return {
+      id: rawUser.id,
+      email: rawUser.email,
+      username: rawUser.user_metadata?.username || rawUser.email?.split('@')[0] || 'Guest',
+      ...rawUser
+    };
+  }, [rawUser.id, rawUser.email, rawUser.user_metadata?.username]);
 
   // Navigate and fetch users
   useEffect((): any => {
@@ -42,7 +49,6 @@ const Chat = () => {
     const fetchUsers = async () => {
       try {
         const data = await apiService.get('/users/allusers');
-        console.log(data.users);
         // setUsers(data.users.filter((u: any) => u.id !== user.id));
         setUsers(data.users);
       } catch (error) {
@@ -63,6 +69,7 @@ const Chat = () => {
 
     try {
       const roomId = [user.id, userToChatWith.id].sort().join('_');
+      socket.emit('lastseen', { userId: userToChatWith.id, roomId });
       const historyData = await apiService.get(`/users/messages/${roomId}`);
 
       if (currentRequest !== loadingRef.current) {
@@ -193,7 +200,6 @@ const Chat = () => {
       socket.emit('stop_typing', { roomId });
     }, 2000);
   };
-
   useEffect(() => {
     if (!socket) return;
 
@@ -225,10 +231,16 @@ const Chat = () => {
     setLastSeenChat('');
   }, [selectedUser]);
 
+  // Upload data
+  useEffect(() => {
+    if (!socket || !selectedUser) return;
+    const roomId = [user.id, selectedUser.id].sort().join('_');
+    socket.emit('upload_data', { roomId });
+  }, [selectedUser])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!input.trim() && !files?.length) || !socket || !selectedUser) return;
-
     setIsUploading(true);
     let fileUrls: string[] = [];
 
@@ -260,7 +272,7 @@ const Chat = () => {
         const roomId = [user.id, selectedUser.id].sort().join('_');
         const messageData = {
           roomId,
-          message: input,
+          content: input,
           files: fileUrls,
           senderId: user.id,
           receiverId: selectedUser.id,
@@ -276,6 +288,22 @@ const Chat = () => {
       alert('Failed to send message. Please try again.');
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleEditSubmit = async () => {
+    if (!socket || !selectedUser || !editMessage) return;
+    try {
+      const response = await apiService.put('/users/editmessage', { message: editMessage });
+      if (response?.status === 200) {
+        console.log(response, "sdfsadfdsafsafsafsfsfsdfsdf");
+      }
+      setMessages((prev) => prev.map((m) => m.id === editMessage.id ? { ...m, content: editMessage.content } : m));
+      setEditMessage(null);
+      setEditOpen(false);
+    }
+    catch (error) {
+      console.error(error);
     }
   };
 
@@ -358,67 +386,68 @@ const Chat = () => {
                             {selectedUser?.username?.charAt(0).toUpperCase() || 'U'}
                           </div>
                         )}
-
-                        <div className={`relative px-3 py-2 shadow-md rounded-lg ${isMe
-                          ? 'bg-blue-600/50 text-white rounded-tr-none'
-                          : 'bg-zinc-800 text-zinc-100 border border-zinc-700/50 rounded-tl-none'
-                          }`}>
-                          <div className={`absolute top-0 ${isMe ? '-right-1.5' : '-left-[7px]'}`}>
-                            <div
-                              className={`w-1.5 h-2 ${isMe ? 'bg-blue-600/50' : 'bg-zinc-800'}`}
-                              style={{
-                                clipPath: isMe
-                                  ? 'polygon(0 0, 100% 0, 0 100%)'
-                                  : 'polygon(100% 0, 100% 100%, 0 0)'
-                              }}
-                            />
-                            {!isMe && (
+                        <ContextMenu onEdit={() => { setEditMessage({ ...msg }); setEditOpen(true) }} onDelete={() => { setDeleteOpen(true) }}>
+                          <div className={`relative px-3 py-2 shadow-md rounded-lg ${isMe
+                            ? 'bg-blue-600/50 text-white rounded-tr-none'
+                            : 'bg-zinc-800 text-zinc-100 border border-zinc-700/50 rounded-tl-none'
+                            }`}>
+                            <div className={`absolute top-0 ${isMe ? '-right-1.5' : '-left-[7px]'}`}>
                               <div
-                                className="absolute top-0 left-0 w-2 h-3 border-l border-t border-zinc-700/50"
+                                className={`w-1.5 h-2 ${isMe ? 'bg-blue-600/50' : 'bg-zinc-800'}`}
                                 style={{
-                                  clipPath: 'polygon(100% 0, 100% 100%, 0 0)'
+                                  clipPath: isMe
+                                    ? 'polygon(0 0, 100% 0, 0 100%)'
+                                    : 'polygon(100% 0, 100% 100%, 0 0)'
                                 }}
                               />
-                            )}
-                          </div>
-
-                          {/* Username for received messages */}
-                          {!isMe && (
-                            <div className="text-[11px] font-semibold text-blue-400 mb-1">
-                              {selectedUser?.username}
+                              {!isMe && (
+                                <div
+                                  className="absolute top-0 left-0 w-2 h-3 border-l border-t border-zinc-700/50"
+                                  style={{
+                                    clipPath: 'polygon(100% 0, 100% 100%, 0 0)'
+                                  }}
+                                />
+                              )}
                             </div>
-                          )}
 
-                          {/* Message content */}
-                          <div className="flex flex-col gap-1">
-                            {/* Images if any */}
-                            {msg.signedFiles && msg.signedFiles.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mb-1">
-                                {msg.signedFiles.map((url: string, i: number) => (
-                                  <img
-                                    key={i}
-                                    src={url}
-                                    alt="attachment"
-                                    className="max-h-60 max-w-full rounded-md object-cover"
-                                  />
-                                ))}
+                            {/* Username for received messages */}
+                            {!isMe && (
+                              <div className="text-[11px] font-semibold text-blue-400 mb-1">
+                                {selectedUser?.username}
                               </div>
                             )}
 
-                            {/* Message text and timestamp */}
-                            <div className="flex items-end gap-2">
-                              <p className="whitespace-pre-wrap text-[15px] leading-[1.4] flex-1">
-                                {msg.message || msg.content}
-                              </p>
-                              <div className={`text-[11px] shrink-0 ${isMe ? 'text-blue-100/70' : 'text-zinc-500'}`}>
-                                {msg.time || new Date(msg.createdAt || msg.sentAt).toLocaleTimeString([], {
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
+                            {/* Message content */}
+                            <div className="flex flex-col gap-1">
+                              {/* Images if any */}
+                              {msg.signedFiles && msg.signedFiles.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mb-1">
+                                  {msg.signedFiles.map((url: string, i: number) => (
+                                    <img
+                                      key={i}
+                                      src={url}
+                                      alt="attachment"
+                                      className="max-h-60 max-w-full rounded-md object-cover"
+                                    />
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Message text and timestamp */}
+                              <div className="flex items-end gap-2">
+                                <p className="whitespace-pre-wrap text-[15px] leading-[1.4] flex-1">
+                                  {msg.content}
+                                </p>
+                                <div className={`text-[11px] shrink-0 ${isMe ? 'text-blue-100/70' : 'text-zinc-500'}`}>
+                                  {msg.time || new Date(msg.createdAt || msg.sentAt).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
+                        </ContextMenu>
                       </div>
                     </div>
                   </div>
@@ -447,27 +476,59 @@ const Chat = () => {
             </div>
 
             {/* Message Input */}
-            <form onSubmit={handleSubmit} className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md p-4 sm:p-5 border-t dark:border-zinc-800 flex items-center gap-4 sticky bottom-0 z-10">
-              <FileUploadDropzone value={files} onValueChange={setFiles} />
-              <input
-                type="text"
-                className="flex-1 bg-zinc-100 dark:bg-zinc-800/50 border-transparent border focus:border-blue-500 rounded-full px-5 py-3.5 focus:ring-4 focus:ring-blue-500/10 dark:text-white outline-none transition-all duration-300 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
-                placeholder="Type a message..."
-                value={input}
-                onChange={(e) => { setInput(e.target.value); handleTyping(); }}
-              />
-              <button
-                type="submit"
-                disabled={isUploading || (!input.trim() && !files?.length)}
-                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:saturate-0 disabled:cursor-not-allowed text-white rounded-full p-3.5 flex items-center justify-center transition-all shadow-lg shadow-blue-500/30 transform hover:scale-105 active:scale-95"
-              >
-                {isUploading ? (
-                  <span className="animate-spin">⏳</span>
-                ) : (
-                  <Send size={20} className="mr-0.5 mt-0.5" />
-                )}
-              </button>
-            </form>
+            {!editOpen ? (
+              <form onSubmit={handleSubmit} className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md p-4 sm:p-5 border-t dark:border-zinc-800 flex items-center gap-4 sticky bottom-0 z-10">
+                <FileUploadDropzone value={files} onValueChange={setFiles} />
+                <input
+                  type="text"
+                  className="flex-1 bg-zinc-100 dark:bg-zinc-800/50 border-transparent border focus:border-blue-500 rounded-full px-5 py-3.5 focus:ring-4 focus:ring-blue-500/10 dark:text-white outline-none transition-all duration-300 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+                  placeholder="Type a message..."
+                  value={input}
+                  onChange={(e: any) => { setInput(e.target.value); handleTyping(); }}
+                />
+                <button
+                  type="submit"
+                  disabled={isUploading || (!input.trim() && !files?.length)}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:saturate-0 disabled:cursor-not-allowed text-white rounded-full p-3.5 flex items-center justify-center transition-all shadow-lg shadow-blue-500/30 transform hover:scale-105 active:scale-95"
+                >
+                  {isUploading ? (
+                    <span className="animate-spin">⏳</span>
+                  ) : (
+                    <Send size={20} className="mr-0.5 mt-0.5" />
+                  )}
+                </button>
+              </form>
+            ) : editOpen && (
+              <form onSubmit={handleSubmit} className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md p-4 sm:p-5 border-t dark:border-zinc-800 flex items-center gap-4 sticky bottom-0 z-10">
+                <FileUploadDropzone value={files} onValueChange={(newFiles) => setEditMessage({ ...editMessage, signedFiles: newFiles })} />
+                <input
+                  type="text"
+                  className="flex-1 bg-zinc-100 dark:bg-zinc-800/50 border-transparent border focus:border-blue-500 rounded-full px-5 py-3.5 focus:ring-4 focus:ring-blue-500/10 dark:text-white outline-none transition-all duration-300 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+                  placeholder="Type a message..."
+                  value={editMessage?.content || ''}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setEditMessage({ ...editMessage, content: e.target.value }); handleTyping(); }}
+                />
+                <button
+                  type="button"
+                  onClick={handleEditSubmit}
+                  disabled={isUploading || (!editMessage?.content?.trim() && !editMessage?.signedFiles?.length)}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:saturate-0 disabled:cursor-not-allowed text-white rounded-full p-3.5 flex items-center justify-center transition-all shadow-lg shadow-blue-500/30 transform hover:scale-105 active:scale-95"
+                >
+                  {isUploading ? (
+                    <span className="animate-spin">⏳</span>
+                  ) : (
+                    <Pencil size={20} className="mr-0.5 mt-0.5" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setEditOpen(false); setEditMessage(null) }}
+                  className="bg-red-600/70 hover:bg-red-700 disabled:opacity-50 disabled:saturate-0 disabled:cursor-not-allowed text-white rounded-full p-3 flex items-center justify-center transition-all shadow-lg shadow-blue-500/30 transform hover:scale-105 active:scale-95"
+                >
+                  <Cross size={25} className="mr-0 mt-0 rotate-45" />
+                </button>
+              </form>
+            )}
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-500">

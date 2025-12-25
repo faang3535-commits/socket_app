@@ -6,7 +6,7 @@ const debug = require('debug')('backend:server');
 const http = require('http');
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
-
+const setupSocket = require('../src/sockets/socketHandler');
 const server = http.createServer(app);
 
 const io = new Server(3001, {
@@ -14,8 +14,6 @@ const io = new Server(3001, {
     origin: "*",
   },
 });
-
-// console.log("Socket.io running on port 3001");
 
 // SOCKET AUTH MIDDLEWARE
 io.use((socket, next) => {
@@ -45,77 +43,7 @@ io.use((socket, next) => {
   }
 });
 
-io.on("connection", (socket) => {
-  console.log("User connected:", socket.id, "UserID:", socket.user.id);
-
-  socket.on("join_room", (roomId) => {
-    socket.join(roomId);
-    // console.log (`User ${socket.user.id} joined room ${roomId}`);
-  });
-
-  socket.on("send_message", async ({ roomId, message, files }) => {
-    try {
-      const savedMessage = await prisma.messages.create({
-        data: {
-          content: message,
-          file: Array.isArray(files) ? files : [],
-          senderId: socket.user.id,
-          roomId: roomId,
-        },
-      });
-      io.to(roomId).emit("receive_message", {
-        id: savedMessage.id,
-        content: savedMessage.content,
-        senderId: socket.user.id,
-        file: savedMessage.file,
-        roomId: roomId,
-        sentAt: savedMessage.sentAt,
-      });
-
-    } catch (error) {
-      console.error("Failed to save message:", error);
-    }
-  });
-
-  socket.on("typing", ({ roomId }) => {
-    socket.to(roomId).emit("typing", {
-      from: socket.user.id,
-    });
-  });
-
-  socket.on("stop_typing", ({ roomId }) => {
-    socket.to(roomId).emit("stop_typing", {
-      from: socket.user.id,
-    });
-  });
-
-  socket.on("lastseen", async ({ userId, roomId }) => {
-    try {
-      const updatedRoom = await prisma.rooms.upsert({
-        where: {
-          roomId_userId: {
-            roomId: roomId,
-            userId: userId,
-          },
-        },
-        update: {
-          lastSeen: new Date(),
-        },
-        create: {
-          roomId: roomId,
-          userId: userId,
-          lastSeen: new Date(),
-        },
-      });
-
-    } catch (error) {
-      console.error("Failed to update last seen:", error);
-    }
-  });
-
-  socket.on("disconnect", () => {
-  });
-});
+setupSocket(io); 
 
 const port = normalizePort(process.env.PORT || '3000');
 app.set('port', port);

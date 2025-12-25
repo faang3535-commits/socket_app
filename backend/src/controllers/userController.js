@@ -102,6 +102,24 @@ const userController = {
       res.status(500).json({ message: "Server Error" });
     }
   },
+
+  editMessage: async (req, res) => {
+    try {
+      const { message } = req.body;
+      await prisma.messages.update({
+        where: {
+          id: message.id,
+        },
+        data: {
+          content: message.content,
+        },
+      });
+      res.json(message);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Server Error", error });
+    }
+  },  
 };
 
 module.exports = userController;
