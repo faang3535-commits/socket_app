@@ -13,7 +13,7 @@ interface ContextMenuProps {
 
 const Context_Menu = ({ children, onEdit, onDelete }: ContextMenuProps) => {
    return (
-      <ContextMenu>
+      <ContextMenu modal={false}>
          <ContextMenuTrigger>
             {children}
          </ContextMenuTrigger>

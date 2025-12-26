@@ -8,7 +8,7 @@ function setupSocket(io) {
       socket.on('join_room', (roomId) => {
          socket.join(roomId);
          activeRoom = roomId;
-         console.log(`User ${socket.user.id} joined room: ${roomId}`);
+         console.log(`User ${socket.user.id} joined room: ${roomId}`); 
       });
 
       socket.on('send_message', async ({ content, files, roomId }) => {
@@ -18,7 +18,6 @@ function setupSocket(io) {
                file: Array.isArray(files) ? files : [],
                senderId: socket.user.id,
             });
-
             io.to(roomId).emit('receive_message', {
                content: content,
                senderId: socket.user.id,
@@ -26,6 +25,7 @@ function setupSocket(io) {
                roomId: roomId,
                sentAt: new Date(),
             });
+            console.log("Send message received for room:", content, files, roomId, "/*/*/*/*/");
          } catch (error) {
             console.error("Failed to process message in handler:", error);
          }
@@ -52,6 +52,7 @@ function setupSocket(io) {
       });
 
       socket.on("upload_data", async ({ roomId }) => {
+         console.log("Upload data received for room:", roomId);
          try {
             console.log("Upload data received for room:", roomId);
             if (activeRoom) {

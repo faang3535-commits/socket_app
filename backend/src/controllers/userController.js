@@ -1,4 +1,5 @@
 require('dotenv').config();
+// import supabase from '../../config/supabase';
 const prisma = require('../../prisma');
 
 const userController = {
@@ -119,7 +120,29 @@ const userController = {
       console.error(error);
       res.status(500).json({ message: "Server Error", error });
     }
-  },  
+  },
+
+  deleteMessage: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { URL } = req.query;
+      await prisma.messages.delete({
+        where: {
+          id,
+        },
+      });
+      // if (URL) {
+      //   await supabase
+      //     .from('images')
+      //     .delete()
+      //     .eq('id', URL)
+      // }
+      res.json({ id });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Server Error", error });
+    }
+  },
 };
 
 module.exports = userController;

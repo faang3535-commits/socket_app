@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { io } from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../../services/axios';
 import { Cross, Pencil, Send } from 'lucide-react';
@@ -8,29 +7,29 @@ import { supabase } from '@/lib/supabase';
 import Sidebar from '@/components/chatcomponents/sidebar';
 import ChatHeader from '@/components/chatcomponents/chatheader';
 import MessagesList from '@/components/chatcomponents/chatlist';
+import { useSocket } from '@/context/SocketContext';
+import { useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
+import { setMessages, addMessage } from '@/store/slices/chatSlice';
 
 const Chat = () => {
-  const [messages, setMessages] = useState<any[]>([]);
+  const dispatch = useDispatch();
+  const messages = useSelector((state: any) => state.chat.messages);
+  const selectedUser = useSelector((state: any) => state.chat.selectedUser);
+  const { socket } = useSocket();
   const [input, setInput] = useState('');
-  const [socket, setSocket] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isTyping, setIsTyping] = useState(false);
   const navigate = useNavigate();
   const sessionString = localStorage.getItem('sb-bivjfuifyqourtgzxrkj-auth-token');
   const session = sessionString ? JSON.parse(sessionString) : null;
-  const rawUser = session?.user || {};
   const token = session?.access_token;
+  const rawUser = session?.user || {};
   const typingTimeoutRef = useRef<any>(null);
-  const prevSelectedUser = useRef<any>(selectedUser);
   const [files, setFiles] = useState<File[] | null>(null);
-  // const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [editOpen, setEditOpen] = useState(false)
   const [editMessage, setEditMessage] = useState<any>(null)
-
-
-  const loadingRef = useRef(0);
 
   const user = useMemo(() => {
     return {
@@ -57,51 +56,52 @@ const Chat = () => {
     fetchUsers();
   }, [navigate, user.id]);
 
-  const joinRoom = async (userToChatWith: any) => {
-    setSelectedUser(userToChatWith);
-    setMessages([]);
-  }
-
-  // Socket connection
+  // Listen for incoming messages
   useEffect(() => {
-    if (!user.id) return;
+    if (!socket || !selectedUser) return;
 
-    const newSocket = io('http://localhost:3001', {
-      auth: { token },
-    });
+    const handleMessage = async (msg: any) => {
+      const currentRoomId = [user.id, selectedUser.id].sort().join('_');
+      if (msg.senderId !== user.id && msg.roomId === currentRoomId) {
 
-    newSocket.on('connect_error', (err: any) => {
-      console.error("Socket connection error:", err.message);
-    });
+        if (msg.signedFiles && msg.signedFiles.length > 0) {
+          dispatch(addMessage(msg));
+          return;
+        }
 
-    newSocket.on('receive_message', async (msg: any) => {
-      if (msg.file && msg.file.length > 0) {
-        msg.signedFiles = await Promise.all(
-          msg.file.map(async (path: string) => {
-            const { data } = await supabase
-              .storage
-              .from('Dev')
-              .createSignedUrl(path, 86400);
-            return data?.signedUrl;
-          })
-        );
+        const filePaths = msg.files || msg.file || [];
+
+        if (filePaths.length > 0) {
+          const signedUrlResults = await Promise.all(
+            filePaths.map(async (path: string) => {
+              const { data } = await supabase
+                .storage
+                .from('Dev')
+                .createSignedUrl(path, 86400);
+              return data?.signedUrl;
+            })
+          );
+
+          const signedFiles = signedUrlResults.filter((url): url is string => url !== undefined);
+          dispatch(addMessage({ ...msg, signedFiles }));
+        } else {
+          dispatch(addMessage(msg));
+        }
       }
-      setMessages((prev) => [...prev, msg]);
-    });
+    };
 
-    setSocket(newSocket);
+    socket.on('receive_message', handleMessage);
 
     return () => {
-      newSocket.disconnect();
+      socket.off('receive_message', handleMessage);
     };
-  }, [user.id]);
+  }, [socket, user.id, dispatch, selectedUser]);
 
-  // Join room
+  // Join room when selected user changes
   useEffect(() => {
-    if (socket && selectedUser && user.id) {
-      const roomId = [user.id, selectedUser.id].sort().join('_');
-      socket.emit('join_room', roomId);
-    }
+    if (!socket || !selectedUser || !user.id) return;
+    const roomId = [user.id, selectedUser.id].sort().join('_');
+    socket.emit('join_room', roomId);
   }, [socket, selectedUser, user.id]);
 
   // Typing indicator
@@ -116,6 +116,8 @@ const Chat = () => {
       socket.emit('stop_typing', { roomId });
     }, 2000);
   };
+
+  // Typing indicator
   useEffect(() => {
     if (!socket) return;
 
@@ -135,16 +137,6 @@ const Chat = () => {
       socket.off('stop_typing', onStopTyping);
     };
   }, [socket, user.id]);
-
-  // Update last seen
-  useEffect(() => {
-    if (!socket || !selectedUser) return;
-    if (prevSelectedUser.current !== null) {
-      const roomId = [user.id, prevSelectedUser.current.id].sort().join('_');
-      socket.emit('lastseen', { userId: prevSelectedUser.current.id, roomId });
-    }
-    prevSelectedUser.current = selectedUser;
-  }, [selectedUser]);
 
   // Upload data
   useEffect(() => {
@@ -185,15 +177,34 @@ const Chat = () => {
 
       if (input.trim() || fileUrls.length > 0) {
         const roomId = [user.id, selectedUser.id].sort().join('_');
+
+        // Generate signed URLs for uploaded files so images display immediately -- ADDED
+        let signedFiles: string[] = [];
+        if (fileUrls.length > 0) {
+          const signedUrlResults = await Promise.all(
+            fileUrls.map(async (path: string) => {
+              const { data } = await supabase
+                .storage
+                .from('Dev')
+                .createSignedUrl(path, 86400); // 24 hours expiry
+              return data?.signedUrl;
+            })
+          );
+          signedFiles = signedUrlResults.filter((url): url is string => url !== undefined);
+        }
+
         const messageData = {
           roomId,
           content: input,
           files: fileUrls,
+          signedFiles, // ADDED - include signed URLs for immediate display
           senderId: user.id,
           receiverId: selectedUser.id,
           username: user.username,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         };
+
+        dispatch(setMessages([...messages, messageData]));
         socket.emit('send_message', messageData);
         setInput('');
         setFiles([]);
@@ -213,8 +224,8 @@ const Chat = () => {
       if (response?.status === 200) {
         console.log(response, "sdfsadfdsafsafsafsfsfsdfsdf");
       }
-      setMessages((prev) => prev.map((m) => m.id === editMessage.id ? { ...m, content: editMessage.content } : m));
-      setEditMessage(null);
+      const newMessages = messages.map((m: any) => m.id === editMessage.id ? { ...m, content: editMessage.content } : m);
+      dispatch(setMessages(newMessages));
       setEditOpen(false);
     }
     catch (error) {
@@ -225,14 +236,14 @@ const Chat = () => {
   return (
     <div className="flex h-screen bg-zinc-100 dark:bg-zinc-900 overflow-hidden">
       {/* Sidebar / Contacts */}
-      <Sidebar users={users} selectedUser={selectedUser} joinRoom={joinRoom} />
+      <Sidebar users={users} selectedUser={selectedUser} user={user} />
       {/* Main Chat Area */}
       <main className="flex-1 flex flex-col bg-zinc-50/50 dark:bg-zinc-950/50 backdrop-blur-3xl">
         {selectedUser ? (
           <>
             <ChatHeader selectedUser={selectedUser} />
 
-            <MessagesList selectedUser={selectedUser} user={user} />
+            <MessagesList selectedUser={selectedUser} user={user} isTyping={isTyping} setEditOpen={setEditOpen} setEditMessage={setEditMessage} />
 
             {/* Message Input */}
             {!editOpen ? (
