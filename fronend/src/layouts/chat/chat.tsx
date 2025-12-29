@@ -21,8 +21,8 @@ const Chat = () => {
   const [users, setUsers] = useState<any[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const navigate = useNavigate();
-  const sessionString = localStorage.getItem('sb-bivjfuifyqourtgzxrkj-auth-token');
-  const session = sessionString ? JSON.parse(sessionString) : null;
+
+  const session = useSelector((state: any) => state.session.session);
   const token = session?.access_token;
   const rawUser = session?.user || {};
   const typingTimeoutRef = useRef<any>(null);
@@ -31,30 +31,35 @@ const Chat = () => {
   const [editOpen, setEditOpen] = useState(false)
   const [editMessage, setEditMessage] = useState<any>(null)
 
+
+
   const user = useMemo(() => {
+    if (!rawUser) return {};
     return {
       id: rawUser.id,
       email: rawUser.email,
       username: rawUser.user_metadata?.username || rawUser.email?.split('@')[0] || 'Guest',
       ...rawUser
     };
-  }, [rawUser.id, rawUser.email, rawUser.user_metadata?.username]);
+  }, [rawUser]);
 
   // Navigate and fetch users
   useEffect((): any => {
-    if (!token) navigate('/login');
+    if (token) {
+      const fetchUsers = async () => {
+        try {
+          const data = await apiService.get('/users/allusers');
+          setUsers(data.users);
+        } catch (error) {
+          console.error('Error fetching users:', error);
+        }
+      };
 
-    const fetchUsers = async () => {
-      try {
-        const data = await apiService.get('/users/allusers');
-        setUsers(data.users);
-      } catch (error) {
-        console.error('Error fetching users:', error);
-      }
-    };
-
-    fetchUsers();
-  }, [navigate, user.id]);
+      fetchUsers();
+    } else {
+      navigate('/login');
+    }
+  }, [navigate, token]);
 
   // Listen for incoming messages
   useEffect(() => {
@@ -178,7 +183,6 @@ const Chat = () => {
       if (input.trim() || fileUrls.length > 0) {
         const roomId = [user.id, selectedUser.id].sort().join('_');
 
-        // Generate signed URLs for uploaded files so images display immediately -- ADDED
         let signedFiles: string[] = [];
         if (fileUrls.length > 0) {
           const signedUrlResults = await Promise.all(
@@ -186,7 +190,7 @@ const Chat = () => {
               const { data } = await supabase
                 .storage
                 .from('Dev')
-                .createSignedUrl(path, 86400); // 24 hours expiry
+                .createSignedUrl(path, 86400);
               return data?.signedUrl;
             })
           );
@@ -197,7 +201,7 @@ const Chat = () => {
           roomId,
           content: input,
           files: fileUrls,
-          signedFiles, // ADDED - include signed URLs for immediate display
+          signedFiles,
           senderId: user.id,
           receiverId: selectedUser.id,
           username: user.username,
@@ -222,7 +226,7 @@ const Chat = () => {
     try {
       const response = await apiService.put('/users/editmessage', { message: editMessage });
       if (response?.status === 200) {
-        console.log(response, "sdfsadfdsafsafsafsfsfsdfsdf");
+
       }
       const newMessages = messages.map((m: any) => m.id === editMessage.id ? { ...m, content: editMessage.content } : m);
       dispatch(setMessages(newMessages));

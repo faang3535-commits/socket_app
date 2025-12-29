@@ -1,5 +1,5 @@
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
-const s3 = require("../config/s3");
+const { s3 } = require("../config/s3");
 const { randomUUID } = require("crypto");
 const path = require("path");
 
@@ -10,14 +10,14 @@ const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif',
 const fileUpload = async (req, res) => {
    try {
       const { file } = req;
-      if (!file) {  
+      if (!file) {
          console.log("No file uploaded");
          return res.status(400).json({ message: "No file uploaded" });
       }
 
       if (file.size > MAX_FILE_SIZE) {
          console.log("File size exceeds limit");
-         return res.status(400).json({ message: "File size exceeds limit" });  
+         return res.status(400).json({ message: "File size exceeds limit" });
       }
 
       if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {

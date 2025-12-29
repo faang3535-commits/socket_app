@@ -24,6 +24,7 @@ model users {
   id        String       @id @default(uuid()) @db.Uuid
   username  String       @unique
   createdAt DateTime     @default(now()) @map("created_at")
+  lastSeen  DateTime?    @db.Timestamptz @map("last_seen")
 
   messages  messages[]
   rooms     rooms[]
@@ -44,3 +45,9 @@ model messages {
   @@index([roomId]) 
   @@map("messages")
 }
+
+
+
+
+// npx prisma generate
+// npx prisma db push  

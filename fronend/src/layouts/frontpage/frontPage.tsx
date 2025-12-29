@@ -10,7 +10,7 @@ const FrontPage = () => {
                 <section className="min-h-[80vh] text-center bg-[radial-gradient(#ffffff33_1px,#181818_1px)] bg-size-[20px_20px]">
                     <div className="flex flex-col items-center justify-center min-h-[80vh] w-full bg-[linear-gradient(180deg,rgba(255,255,255,0)_87%,rgba(24,24,24,1))]">
                         <div className="max-w-4xl mx-auto ">
-                            <h1 className="text-5xl md:text-7xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-teal-400">
+                            <h1 className="text-5xl md:text-7xl font-bold tracking-tighter bg-clip-text text-transparent bg-linear-to-r from-blue-500 to-teal-400">
                                 Connect Instantly, Chat Seamlessly
                             </h1>
                             <p className="mt-4 text-lg md:text-xl text-neutral-500 dark:text-neutral-400 max-w-2xl mx-auto">
@@ -36,17 +36,17 @@ const FrontPage = () => {
                         </div>
                         <div className="grid md:grid-cols-3 gap-8">
                             <div className="bg-white dark:bg-neutral-800/50 p-8 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-                                <div className="bg-gradient-to-br from-red-400 to-orange-500 w-12 h-12 rounded-lg mb-4"></div>
+                                <div className="bg-linear-to-br from-red-400 to-orange-500 w-12 h-12 rounded-lg mb-4"></div>
                                 <h3 className="text-xl font-bold mb-2">Real-time</h3>
                                 <p className="text-neutral-600 dark:text-neutral-400">Instant message delivery for fluid conversations. No delays, no waiting.</p>
                             </div>
                             <div className="bg-white dark:bg-neutral-800/50 p-8 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-                                <div className="bg-gradient-to-br from-blue-400 to-indigo-600 w-12 h-12 rounded-lg mb-4"></div>
+                                <div className="bg-linear-to-br from-blue-400 to-indigo-600 w-12 h-12 rounded-lg mb-4"></div>
                                 <h3 className="text-xl font-bold mb-2">Scalable</h3>
                                 <p className="text-neutral-600 dark:text-neutral-400">Built to handle conversations of any size, from one-on-one chats to large groups.</p>
                             </div>
                             <div className="bg-white dark:bg-neutral-800/50 p-8 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-                                <div className="bg-gradient-to-br from-emerald-400 to-teal-500 w-12 h-12 rounded-lg mb-4"></div>
+                                <div className="bg-linear-to-br from-emerald-400 to-teal-500 w-12 h-12 rounded-lg mb-4"></div>
                                 <h3 className="text-xl font-bold mb-2">Secure</h3>
                                 <p className="text-neutral-600 dark:text-neutral-400">End-to-end encryption to ensure your conversations are private and secure.</p>
                             </div>

@@ -1,6 +1,6 @@
 require('dotenv').config();
-// import supabase from '../../config/supabase';
 const prisma = require('../../prisma');
+const { deleteFilesFromS3 } = require("../config/s3.js");
 
 const userController = {
 
@@ -122,25 +122,88 @@ const userController = {
     }
   },
 
+  // deleteMessage: async (req, res) => {
+  //   try {
+  //     const { id } = req.params;
+  //     const { URL } = req.query;
+  //     console.log(URL, "URL query params /*/**////*///*");
+  //     await prisma.messages.delete({
+  //       where: {
+  //         id,
+  //       },
+  //     });
+  //     res.json({ id });
+  //   } catch (error) {
+  //     console.error(error);
+  //     res.status(500).json({ message: "Server Error", error });
+  //   }
+  // },
+
   deleteMessage: async (req, res) => {
+    const { id } = req.params;
+
     try {
-      const { id } = req.params;
-      const { URL } = req.query;
-      await prisma.messages.delete({
-        where: {
-          id,
-        },
+      const message = await prisma.messages.findUnique({
+        where: { id }
       });
-      // if (URL) {
-      //   await supabase
-      //     .from('images')
-      //     .delete()
-      //     .eq('id', URL)
-      // }
-      res.json({ id });
+
+      if (!message) return res.status(404).json({ error: "Message not found" });
+
+      if (message.file && message.file.length > 0) {
+        await deleteFilesFromS3(message.file);
+      }
+      await prisma.messages.delete({
+        where: { id }
+      });
+
+      res.status(200).json({ success: true, message: "Deleted everything" });
     } catch (error) {
       console.error(error);
-      res.status(500).json({ message: "Server Error", error });
+      res.status(500).json({ error: "Internal server error" });
+    }
+  },
+
+  getNotification: async (req, res) => {
+    try {
+      const id = req.user.id;
+
+      const userLastseen = await prisma.users.findUnique({
+        where: { id },
+        select: {
+          lastSeen: true,
+        }
+      });
+
+      const unreadMessagesFromDB = await prisma.messages.findMany({
+        where: {
+          roomId: {
+            contains: id,
+          },
+          senderId: {
+            not: id,
+          },
+          sentAt: {
+            gt: userLastseen.lastSeen,
+          },
+        },
+        orderBy: {
+          sentAt: 'desc',
+        },
+      });
+
+      const chatBuffer = require('../services/chatBuffer'); 
+      const unreadMessagesFromBuffer = chatBuffer.getUnreadBufferedMessages(id); 
+
+      const allUnreadMessages = [
+        ...unreadMessagesFromDB,
+        ...unreadMessagesFromBuffer,
+      ];
+      allUnreadMessages.sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
+
+      res.json(allUnreadMessages); 
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Server Error" });
     }
   },
 };

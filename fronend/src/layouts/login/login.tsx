@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiService } from "../../services/axios";
 import { supabase } from "../../lib/supabase";
+import { useDispatch } from "react-redux";
+import { setSession } from "../../store/slices/userSlice";
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,6 +27,7 @@ const Login = () => {
     }
 
     if (data.session) {
+      dispatch(setSession(data.session));
       const username = data.user?.user_metadata?.username;
       if (username) {
         try {

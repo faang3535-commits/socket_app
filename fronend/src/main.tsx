@@ -7,6 +7,7 @@ import { supabase } from './lib/supabase.ts';
 import { SocketProvider } from './context/SocketContext.tsx';
 import { Provider } from 'react-redux';
 import { store } from './store';
+import { setSession } from './store/slices/userSlice.tsx';
 
 const Root = () => {
   useEffect(() => {
@@ -16,10 +17,12 @@ const Root = () => {
       if (token) {
         socket.auth = { token };
         socket.connect();
+        store.dispatch(setSession(data.session))
       }
     }
     initsocket();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      store.dispatch(setSession(session))
       if (session?.access_token) {
         socket.auth = { token: session.access_token };
         if (!socket.connected) socket.connect();

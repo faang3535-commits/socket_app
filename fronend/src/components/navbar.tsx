@@ -1,17 +1,18 @@
-'use client';
 
 import { useState, useEffect } from 'react';
-import { MenuIcon, X } from 'lucide-react';
+import { MenuIcon, X, Bell } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { DrawerContent, HeaderDrawer } from '@/UI/navbarUI/navbarUI';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
+import { Badge } from '@/components/ui/badge';
+import { apiService } from '@/services/axios';
+import { useSocket } from '@/context/SocketContext'; 
+import { useSelector } from 'react-redux'; 
 
 const NAV_ITEMS = [
   { href: '/', label: 'Home' },
-  // { href: '/login', label: 'Login' },
-  // { href: '/register', label: 'Register' },
   { href: '/chat', label: 'Chat' },
 ];
 
@@ -64,7 +65,22 @@ const Dropdown = () => {
 export default function Navbar() {
   const [headerOpen, setHeaderOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [notificationMessages, setNotificationMessages] = useState([]);
   const location = useLocation();
+  const { socket } = useSocket(); 
+  const session = useSelector((state: any) => state.session.session); 
+  const userId = session?.user?.id; 
+
+  const getNotificationCount = async () => {
+    const response = await apiService.get('/users/notification');
+    setNotificationCount(response.length);
+    setNotificationMessages(response);
+  };
+
+  useEffect(() => {
+    getNotificationCount();
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -75,8 +91,68 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
+    if (!socket || !userId) return; 
+    
+    const handleReceiveMessage = (data: any) => {
+      console.log('Notification: Received message from:', data.senderId, 'Current user:', userId);
+      
+      if (data.senderId !== userId) {
+        console.log('Message is from another user, updating notifications...');
+        getNotificationCount();
+      } else {
+        console.log('Message is from current user, ignoring...');
+      }
+    };
+
+    socket.on('receive_message', handleReceiveMessage); 
+
+    return () => {
+      socket.off('receive_message', handleReceiveMessage); 
+    };
+  }, [socket, userId]); 
+
+  useEffect(() => {
     setHeaderOpen(false);
   }, [location]);
+  const Notification = () => {
+    const navigate = useNavigate();
+    return (
+      <div className='relative'>
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button variant="default" className="flex items-center gap-2 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-blue-600">
+              <Bell />
+              <Badge className="absolute top-0 right-0 translate-x-1/2 -translate-y-1/2 rounded-full font-mono opacity-50 p-0.5 px-1.5" variant="secondary">
+                {notificationCount}
+              </Badge>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-56 border dark:text-gray-300 border-neutral-200 dark:border-neutral-700 bg-transparent backdrop-blur-md">
+            {/* <DropdownMenuLabel>My Account</DropdownMenuLabel> */}
+            {/* <DropdownMenuSeparator className='bg-neutral-200 dark:bg-neutral-700' /> */}
+
+            <DropdownMenuItem className='hover:bg-neutral-800! hover:text-white!'>
+              <button className="text-md font-bold text-white" >
+                Notifications
+              </button>
+            </DropdownMenuItem>
+            {notificationMessages.map((message: any) => (
+              <>
+                {notificationMessages.length > 1 && (
+                  <DropdownMenuSeparator className='bg-neutral-200 dark:bg-neutral-700' />
+                )}
+                <DropdownMenuItem key={message.id} className='hover:bg-neutral-800! hover:text-white!'>
+                  <button className="text-md font-medium" onClick={() => navigate(`/chat/${message.roomId}`)} >
+                    {message.content}
+                  </button>
+                </DropdownMenuItem>
+              </>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    );
+  };
 
   return (
     <header
@@ -113,6 +189,7 @@ export default function Navbar() {
             ))}
           </ul>
           <Dropdown />
+          <Notification />
         </nav>
 
         {/* Mobile Menu Trigger */}

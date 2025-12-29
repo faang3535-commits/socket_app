@@ -4,11 +4,14 @@ const prisma = require('../../prisma');
 function setupSocket(io) {
    io.on('connection', (socket) => {
       let activeRoom = null;
+      
+      socket.join(socket.user.id);
+      console.log(`User ${socket.user.id} connected and joined personal room`);
 
       socket.on('join_room', (roomId) => {
          socket.join(roomId);
          activeRoom = roomId;
-         console.log(`User ${socket.user.id} joined room: ${roomId}`); 
+         console.log(`User ${socket.user.id} joined room: ${roomId}`);
       });
 
       socket.on('send_message', async ({ content, files, roomId }) => {
@@ -18,14 +21,23 @@ function setupSocket(io) {
                file: Array.isArray(files) ? files : [],
                senderId: socket.user.id,
             });
-            io.to(roomId).emit('receive_message', {
+            
+            const messageData = {
                content: content,
                senderId: socket.user.id,
                file: files,
                roomId: roomId,
                sentAt: new Date(),
-            });
-            console.log("Send message received for room:", content, files, roomId, "/*/*/*/*/");
+            };
+            
+            io.to(roomId).emit('receive_message', messageData);
+            
+            const [userId1, userId2] = roomId.split('_');
+            const receiverId = userId1 === socket.user.id ? userId2 : userId1;
+            
+            io.to(receiverId).emit('receive_message', messageData);
+            
+            console.log(`Message sent to room ${roomId} and user ${receiverId}`);
          } catch (error) {
             console.error("Failed to process message in handler:", error);
          }
@@ -46,6 +58,11 @@ function setupSocket(io) {
                update: { lastSeen: new Date() },
                create: { roomId: roomId, userId: userId, lastSeen: new Date() },
             });
+            await prisma.users.update({
+               where: { id: socket.user.id },
+               data: { lastSeen: new Date() },
+            });
+            console.log("Last seen updated for user:", socket.user.id);
          } catch (error) {
             console.error("Failed to update last seen in socketHandler:", error);
          }

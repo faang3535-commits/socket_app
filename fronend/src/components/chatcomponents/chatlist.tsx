@@ -21,7 +21,7 @@ const MessagesList = ({ selectedUser, user, isTyping, setEditOpen, setEditMessag
    const handleDelete = async (message: any) => {
       if (!socket || !selectedUser || !message) return;
       try {
-         const response = await apiService.delete(`/users/deletemessage/${message.id}?URL=${encodeURIComponent(message.file)}`);
+         const response = await apiService.delete(`/users/deletemessage/${message.id}`);
          if (response?.status === 200) {
             console.log(response);
          }
@@ -98,7 +98,6 @@ const MessagesList = ({ selectedUser, user, isTyping, setEditOpen, setEditMessag
                                  {msg.signedFiles && msg.signedFiles.length > 0 && (
                                     <div className="flex flex-wrap gap-1 mb-1">
                                        {msg.signedFiles.map((url: string, i: number) => (
-                                          console.log(url, "url............"),
                                           <img
                                              key={i}
                                              src={url}

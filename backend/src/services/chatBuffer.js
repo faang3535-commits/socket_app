@@ -60,6 +60,24 @@ class ChatBufferService {
          console.error(`[Batching] Failed to flush buffer for room ${roomId}:`, error);
       }
    }
+
+   getUnreadBufferedMessages(userId) {
+      const unreadMessages = [];
+
+      for (const [roomId, messages] of this.buffers.entries()) {
+         if (roomId.includes(userId)) {
+            const userUnreadMessages = messages.filter(msg => msg.senderId !== userId);
+            unreadMessages.push(...userUnreadMessages.map(msg => ({
+               ...msg,
+               roomId,
+               sentAt: new Date(),
+               isBuffered: true,
+            })));
+         }
+      }
+
+      return unreadMessages;
+   }
 }
 
 module.exports = new ChatBufferService();
