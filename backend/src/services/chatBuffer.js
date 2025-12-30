@@ -19,6 +19,7 @@ class ChatBufferService {
          content: message.content,
          file: message.file || [],
          senderId: message.senderId,
+         tempId: message.tempId,
       });
 
       if (roomQueue.length >= this.THRESHOLD) {
@@ -33,6 +34,42 @@ class ChatBufferService {
          }, this.FLUSH_INTERVAL);
          this.timeouts.set(roomId, timeout);
       }
+   }
+
+   removeMessage(roomId, tempId) {
+      if (!this.buffers.has(roomId)) {
+         return;
+      }
+
+      const roomQueue = this.buffers.get(roomId);
+      const messageIndex = roomQueue.findIndex(msg => msg.tempId === tempId);
+
+      if (messageIndex > -1) {
+         roomQueue.splice(messageIndex, 1);
+         console.log(`[Batching] Removed message with tempId ${tempId} from room ${roomId} buffer.`);
+      }
+
+      if (roomQueue.length === 0) {
+         this.buffers.delete(roomId);
+         if (this.timeouts.has(roomId)) {
+            clearTimeout(this.timeouts.get(roomId));
+            this.timeouts.delete(roomId);
+         }
+      }
+   }
+
+   updateMessage(roomId, tempId, updates) {
+      if (!this.buffers.has(roomId)) return;
+      const roomQueue = this.buffers.get(roomId);
+      const messageIndex = roomQueue.findIndex(msg => msg.tempId === tempId);
+      if (messageIndex > -1) {
+         roomQueue[messageIndex] = {
+            ...roomQueue[messageIndex],
+            ...updates
+         }
+         return true;
+      }
+      return false;
    }
 
    async flushBuffer(roomId) {
@@ -52,6 +89,7 @@ class ChatBufferService {
                file: message.file,
                senderId: message.senderId,
                roomId: roomId,
+               reaction: message.reaction || null,
             })),
          });
       } catch (error) {
@@ -72,6 +110,7 @@ class ChatBufferService {
                roomId,
                sentAt: new Date(),
                isBuffered: true,
+               tempId: msg.tempId,
             })));
          }
       }

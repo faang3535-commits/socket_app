@@ -23,7 +23,13 @@ const chatSlice = createSlice({
          state.messages = action.payload;
       },
       addMessage: (state, action: PayloadAction<any>) => {
-         state.messages.push(action.payload);
+         const exists = state.messages.some((m: any) => 
+            (action.payload.id && m.id === action.payload.id) || 
+            (action.payload.tempId && m.tempId === action.payload.tempId)
+         );
+         if (!exists) {
+            state.messages.push(action.payload);
+         }
       },
       setSelectedUser: (state, action: PayloadAction<any>) => {
          state.selectedUser = action.payload;
@@ -37,9 +43,18 @@ const chatSlice = createSlice({
       clearMessages: (state) => {
          state.messages = [];
       },
-   }, 
+      updateReaction: (state, action: PayloadAction<{ messageId?: string, tempId?: string, reaction: string }>) => {
+         const { messageId, tempId, reaction } = action.payload;
+         state.messages = state.messages.map((m: any) => {
+            if ((messageId && m.id === messageId) || (tempId && m.tempId === tempId)) {
+               return { ...m, reaction };
+            }
+            return m;
+         });
+      },
+   },
 });
 
-export const { setMessages, addMessage, setSelectedUser, setIsTyping, setLastSeenChat, clearMessages } = chatSlice.actions;
+export const { setMessages, addMessage, setSelectedUser, setIsTyping, setLastSeenChat, clearMessages, updateReaction } = chatSlice.actions;
 export default chatSlice.reducer;
 

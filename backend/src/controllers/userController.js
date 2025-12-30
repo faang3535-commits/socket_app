@@ -1,6 +1,7 @@
 require('dotenv').config();
 const prisma = require('../../prisma');
 const { deleteFilesFromS3 } = require("../config/s3.js");
+const chatBuffer = require('../services/chatBuffer');
 
 const userController = {
 
@@ -105,39 +106,23 @@ const userController = {
   },
 
   editMessage: async (req, res) => {
-    try {
-      const { message } = req.body;
-      await prisma.messages.update({
-        where: {
-          id: message.id,
-        },
-        data: {
-          content: message.content,
-        },
-      });
-      res.json(message);
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: "Server Error", error });
-    }
+      try {
+        const { message, emoji } = req.body;
+        await prisma.messages.update({
+          where: {
+            id: message.id,
+          },
+          data: {
+            content: message.content,
+            reaction: emoji,
+          },
+        });
+        res.json(message);
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Server Error", error });
+      }
   },
-
-  // deleteMessage: async (req, res) => {
-  //   try {
-  //     const { id } = req.params;
-  //     const { URL } = req.query;
-  //     console.log(URL, "URL query params /*/**////*///*");
-  //     await prisma.messages.delete({
-  //       where: {
-  //         id,
-  //       },
-  //     });
-  //     res.json({ id });
-  //   } catch (error) {
-  //     console.error(error);
-  //     res.status(500).json({ message: "Server Error", error });
-  //   }
-  // },
 
   deleteMessage: async (req, res) => {
     const { id } = req.params;
@@ -160,6 +145,53 @@ const userController = {
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  },
+
+  deleteMessageFromBuffer: (req, res) => {
+    try {
+      const { roomId, tempId } = req.body;
+      if (!roomId || !tempId) {
+        return res.status(400).json({ message: "roomId and tempId are required." });
+      }
+
+      chatBuffer.removeMessage(roomId, tempId);
+
+      res.status(200).json({ success: true, message: "Message removed from buffer." });
+    } catch (error) {
+      console.error('Error removing message from buffer:', error);
+      res.status(500).json({ message: "Server Error" });
+    }
+  },
+
+  editMessageFromBuffer: (req, res) => {
+    try {
+      const payload = req.body.data || req.body;
+      const { roomId, tempId, content, emoji } = payload;
+      
+      if (!roomId || !tempId) {
+        return res.status(400).json({ message: "roomId and tempId are required." });
+      }
+
+      const updates = {};
+      if (content !== undefined) updates.content = content;
+      if (emoji !== undefined) updates.reaction = emoji;
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: "Nothing to update." });
+      }
+
+      const update = chatBuffer.updateMessage(roomId, tempId, updates);
+
+      if (!update) {
+        return res.status(404).json({ message: "Message not found in buffer." });
+      } else {
+        res.status(200).json({ success: true, message: "Message updated in buffer." });
+      }
+
+    } catch (error) {
+      console.error('Error updating message in buffer:', error);
+      res.status(500).json({ message: "Server Error" });
     }
   },
 
@@ -191,8 +223,7 @@ const userController = {
         },
       });
 
-      const chatBuffer = require('../services/chatBuffer'); 
-      const unreadMessagesFromBuffer = chatBuffer.getUnreadBufferedMessages(id); 
+      const unreadMessagesFromBuffer = chatBuffer.getUnreadBufferedMessages(id);
 
       const allUnreadMessages = [
         ...unreadMessagesFromDB,
@@ -200,7 +231,7 @@ const userController = {
       ];
       allUnreadMessages.sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));
 
-      res.json(allUnreadMessages); 
+      res.json(allUnreadMessages);
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Server Error" });

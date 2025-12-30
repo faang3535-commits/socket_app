@@ -6,8 +6,9 @@ import { socket } from './services/socket';
 import { supabase } from './lib/supabase.ts';
 import { SocketProvider } from './context/SocketContext.tsx';
 import { Provider } from 'react-redux';
-import { store } from './store';
+import { store, persistor } from './store';
 import { setSession } from './store/slices/userSlice.tsx';
+import { PersistGate } from 'redux-persist/integration/react';
 
 const Root = () => {
   useEffect(() => {
@@ -39,7 +40,9 @@ const Root = () => {
   return (
     <SocketProvider>
       <Provider store={store}>
-        <App />
+        <PersistGate loading={null} persistor={persistor}>
+          <App />
+        </PersistGate>
       </Provider>
     </SocketProvider>
   )

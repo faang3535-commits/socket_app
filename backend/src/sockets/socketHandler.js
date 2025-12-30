@@ -14,12 +14,13 @@ function setupSocket(io) {
          console.log(`User ${socket.user.id} joined room: ${roomId}`);
       });
 
-      socket.on('send_message', async ({ content, files, roomId }) => {
+      socket.on('send_message', async ({ content, files, roomId, tempId }) => {
          try {
             await ChatBuffer.addMessage(roomId, {
                content: content,
                file: Array.isArray(files) ? files : [],
                senderId: socket.user.id,
+               tempId: tempId,
             });
             
             const messageData = {
@@ -28,16 +29,16 @@ function setupSocket(io) {
                file: files,
                roomId: roomId,
                sentAt: new Date(),
+               tempId: tempId,
             };
-            
-            io.to(roomId).emit('receive_message', messageData);
-            
+            socket.to(roomId).emit('receive_message', messageData);
+
             const [userId1, userId2] = roomId.split('_');
             const receiverId = userId1 === socket.user.id ? userId2 : userId1;
             
             io.to(receiverId).emit('receive_message', messageData);
-            
-            console.log(`Message sent to room ${roomId} and user ${receiverId}`);
+
+            console.log(`Message sent to receiver ${receiverId}`);
          } catch (error) {
             console.error("Failed to process message in handler:", error);
          }
@@ -77,6 +78,23 @@ function setupSocket(io) {
             }
          } catch (error) {
             console.error("Failed to update upload data :", error);
+         }
+      });
+
+      socket.on("send_reaction", async ({ roomId, tempId, messageId, reaction }) => {
+         try {
+            if (tempId) {
+               await ChatBuffer.updateMessage(roomId, tempId, { reaction });
+            }
+            io.to(roomId).emit("receive_reaction", { roomId, tempId, messageId, reaction });
+            
+            const [userId1, userId2] = roomId.split('_');
+            const receiverId = userId1 === socket.user.id ? userId2 : userId1;
+            io.to(receiverId).emit("receive_reaction", { roomId, tempId, messageId, reaction });
+            
+            console.log("Reaction sent for room:", roomId);
+         } catch (error) {
+            console.error("Failed to process reaction in socketHandler:", error);
          }
       });
 

@@ -10,7 +10,8 @@ import MessagesList from '@/components/chatcomponents/chatlist';
 import { useSocket } from '@/context/SocketContext';
 import { useSelector } from 'react-redux';
 import { useDispatch } from 'react-redux';
-import { setMessages, addMessage } from '@/store/slices/chatSlice';
+import { setMessages, addMessage, updateReaction } from '@/store/slices/chatSlice';
+import ChatEmoji from '@/components/chatEmoji';
 
 const Chat = () => {
   const dispatch = useDispatch();
@@ -137,9 +138,15 @@ const Chat = () => {
     socket.on('typing', onTyping);
     socket.on('stop_typing', onStopTyping);
 
+    const onReceiveReaction = (data: any) => {
+      dispatch(updateReaction(data));
+    };
+    socket.on('receive_reaction', onReceiveReaction);
+
     return () => {
       socket.off('typing', onTyping);
       socket.off('stop_typing', onStopTyping);
+      socket.off('receive_reaction', onReceiveReaction);
     };
   }, [socket, user.id]);
 
@@ -206,6 +213,7 @@ const Chat = () => {
           receiverId: selectedUser.id,
           username: user.username,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          tempId: Date.now().toString(),
         };
 
         dispatch(setMessages([...messages, messageData]));
@@ -226,7 +234,7 @@ const Chat = () => {
     try {
       const response = await apiService.put('/users/editmessage', { message: editMessage });
       if (response?.status === 200) {
-
+        console.log('Message Edited Successfully')
       }
       const newMessages = messages.map((m: any) => m.id === editMessage.id ? { ...m, content: editMessage.content } : m);
       dispatch(setMessages(newMessages));
@@ -253,6 +261,7 @@ const Chat = () => {
             {!editOpen ? (
               <form onSubmit={handleSubmit} className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md p-4 sm:p-5 border-t dark:border-zinc-800 flex items-center gap-4 sticky bottom-0 z-10">
                 <FileUploadDropzone value={files} onValueChange={setFiles} />
+                <ChatEmoji setInput={setInput} />
                 <input
                   type="text"
                   className="flex-1 bg-zinc-100 dark:bg-zinc-800/50 border-transparent border focus:border-blue-500 rounded-full px-5 py-3.5 focus:ring-4 focus:ring-blue-500/10 dark:text-white outline-none transition-all duration-300 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"

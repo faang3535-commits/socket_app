@@ -4,10 +4,10 @@ interface DeleteAlertProps {
    deleteOpen: boolean;
    setDeleteOpen: (open: boolean) => void;
    messageToDelete: any;
-   hadleDelete: (message: any) => void;
+   handleDelete: (message: any) => void;
 }
 
-const DeleteAlert = ({ deleteOpen, setDeleteOpen, messageToDelete, hadleDelete }: DeleteAlertProps) => {
+const DeleteAlert = ({ deleteOpen, setDeleteOpen, messageToDelete, handleDelete }: DeleteAlertProps) => {
    return (
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
          <AlertDialogContent className='dark:bg-transparent bg-neutral-50'>
@@ -23,7 +23,7 @@ const DeleteAlert = ({ deleteOpen, setDeleteOpen, messageToDelete, hadleDelete }
 
                <AlertDialogAction
                   className="bg-red-600 hover:bg-red-700 dark:text-white text-black"
-                  onClick={async () => { hadleDelete(messageToDelete) }}
+                  onClick={async () => { handleDelete(messageToDelete) }}
                >
                   Delete
                </AlertDialogAction>

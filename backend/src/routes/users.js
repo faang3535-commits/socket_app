@@ -10,4 +10,7 @@ router.get('/allusers', authMiddleware, userController.getalluser);
 router.get('/messages/:roomId', authMiddleware, userController.getMessages);
 
 router.get('/notification', authMiddleware, userController.getNotification);
+
+router.put('/editmessagefrombuffer', authMiddleware, userController.editMessageFromBuffer);
+router.delete('/deletemessagefrombuffer', authMiddleware, userController.deleteMessageFromBuffer);
 module.exports = router;

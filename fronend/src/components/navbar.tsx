@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { apiService } from '@/services/axios';
-import { useSocket } from '@/context/SocketContext'; 
-import { useSelector } from 'react-redux'; 
+import { useSocket } from '@/context/SocketContext';
+import { useSelector } from 'react-redux';
 
 const NAV_ITEMS = [
   { href: '/', label: 'Home' },
@@ -67,15 +67,18 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
   const [notificationMessages, setNotificationMessages] = useState([]);
+  const [allUsers, setAllUsers] = useState<any>([]);
   const location = useLocation();
-  const { socket } = useSocket(); 
-  const session = useSelector((state: any) => state.session.session); 
-  const userId = session?.user?.id; 
+  const { socket } = useSocket();
+  const session = useSelector((state: any) => state.session.session);
+  const userId = session?.user?.id;
 
   const getNotificationCount = async () => {
     const response = await apiService.get('/users/notification');
+    const data = await apiService.get('/users/allusers');
     setNotificationCount(response.length);
     setNotificationMessages(response);
+    setAllUsers(data);
   };
 
   useEffect(() => {
@@ -91,11 +94,11 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
-    if (!socket || !userId) return; 
-    
+    if (!socket || !userId) return;
+
     const handleReceiveMessage = (data: any) => {
       console.log('Notification: Received message from:', data.senderId, 'Current user:', userId);
-      
+
       if (data.senderId !== userId) {
         console.log('Message is from another user, updating notifications...');
         getNotificationCount();
@@ -104,12 +107,12 @@ export default function Navbar() {
       }
     };
 
-    socket.on('receive_message', handleReceiveMessage); 
+    socket.on('receive_message', handleReceiveMessage);
 
     return () => {
-      socket.off('receive_message', handleReceiveMessage); 
+      socket.off('receive_message', handleReceiveMessage);
     };
-  }, [socket, userId]); 
+  }, [socket, userId]);
 
   useEffect(() => {
     setHeaderOpen(false);
@@ -131,19 +134,18 @@ export default function Navbar() {
             {/* <DropdownMenuLabel>My Account</DropdownMenuLabel> */}
             {/* <DropdownMenuSeparator className='bg-neutral-200 dark:bg-neutral-700' /> */}
 
-            <DropdownMenuItem className='hover:bg-neutral-800! hover:text-white!'>
-              <button className="text-md font-bold text-white" >
-                Notifications
-              </button>
+            <DropdownMenuItem className='hover:bg-transparent! dark:text-white! text-black' >
+              Notifications
             </DropdownMenuItem>
             {notificationMessages.map((message: any) => (
               <>
                 {notificationMessages.length > 1 && (
                   <DropdownMenuSeparator className='bg-neutral-200 dark:bg-neutral-700' />
                 )}
+                {allUsers.users.find((user: any) => user.id === message.senderId).username}
                 <DropdownMenuItem key={message.id} className='hover:bg-neutral-800! hover:text-white!'>
                   <button className="text-md font-medium" onClick={() => navigate(`/chat/${message.roomId}`)} >
-                    {message.content}
+                {message.content} 
                   </button>
                 </DropdownMenuItem>
               </>

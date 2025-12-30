@@ -1,7 +1,7 @@
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL") 
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {
@@ -9,45 +9,44 @@ generator client {
 }
 
 model rooms {
-  id        String    @id @default(uuid()) @db.Uuid 
+  id        String    @id @default(uuid()) @db.Uuid
   roomId    String    @map("room_id")
-  userId    String    @db.Uuid @map("user_id") 
-  lastSeen  DateTime? @db.Timestamptz @map("last_seen")
+  userId    String    @map("user_id") @db.Uuid
+  lastSeen  DateTime? @map("last_seen") @db.Timestamptz
   createdAt DateTime  @default(now()) @map("created_at")
 
-  user      users     @relation(fields: [userId], references: [id])
+  user users @relation(fields: [userId], references: [id])
+
   @@unique([roomId, userId])
   @@map("rooms")
 }
 
 model users {
-  id        String       @id @default(uuid()) @db.Uuid
-  username  String       @unique
-  createdAt DateTime     @default(now()) @map("created_at")
-  lastSeen  DateTime?    @db.Timestamptz @map("last_seen")
+  id        String    @id @default(uuid()) @db.Uuid
+  username  String    @unique
+  createdAt DateTime  @default(now()) @map("created_at")
+  lastSeen  DateTime? @map("last_seen") @db.Timestamptz
 
-  messages  messages[]
-  rooms     rooms[]
+  messages messages[]
+  rooms    rooms[]
+
   @@map("users")
 }
 
 model messages {
   id       String   @id @default(uuid()) @db.Uuid
   content  String
-  file     String[] @map("file") 
-  senderId String   @db.Uuid @map("sender_id")
-  roomId   String   @map("room_id") 
+  file     String[] @map("file")
+  senderId String   @map("sender_id") @db.Uuid
+  roomId   String   @map("room_id")
   sentAt   DateTime @default(now()) @map("sent_at")
-
+  reaction String? @map("reaction")
   sender   users    @relation(fields: [senderId], references: [id])
 
-  @@index([roomId, sentAt]) 
-  @@index([roomId]) 
+  @@index([roomId, sentAt])
+  @@index([roomId])
   @@map("messages")
 }
-
-
-
 
 // npx prisma generate
 // npx prisma db push  
